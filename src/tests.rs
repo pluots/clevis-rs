@@ -1,0 +1,48 @@
+use serde_json::{json, Value};
+
+/// Sample JWS as provided from a tang server
+const SAMPLE_JWS: &str = concat!(
+    r#"{"payload": ""#,
+    "eyJrZXlzIjogW3siYWxnIjogIkVDTVIiLCAia3R5IjogIkVDIiwgImNydiI6ICJQLTUyMSIsICJ4IjogIkFGa3preGxGa\
+    EpMWlMtOXZQeGkwbV83T1d6NVRKWGotZ2JFaVd1am40RHNHM1pzU3pMRWt3MGdlQXFTb29NN01sSS1IRDJuOGpxOTNWS1h\
+    xZm5mcGg2VjgiLCAieSI6ICJBUTFfQm5RdWNEc2NESl9VZll0ZVE4TUVnNzF5Z3cteDdnWDlRWkxyMzlReHJEOEVfbDYxc\
+    EhReFdaX3VFMTk1dDlvdGhTVmtqRi1DMXU1QjhmdFQ2YkRUIiwgImtleV9vcHMiOiBbImRlcml2ZUtleSJdfSwgeyJhbGc\
+    iOiAiRVM1MTIiLCAia3R5IjogIkVDIiwgImNydiI6ICJQLTUyMSIsICJ4IjogIkFHdWFRZ1h0Ni1LUVoyYTlFMVRtODlLa\
+    TZjeFBKXzdBYTAxOS1yUVY5ZGRTbDZ2M1oyMWVHMTBLc055ckVuSG0wdlRDd0JXVnRtWkc5Mlh4YUdRay1Ua1giLCAieSI\
+    6ICJBWFJaZV95NXJqSjBSQXZ0NzNoWUNNbnptZ0JfblBNU1h2Ym5jTDZsMEg2SFJaU1lDLXZPWi1hYk5CcHpLcFBtb1JHZ\
+    zdjX01USjhnY0xjRzU1aS1PYkVwIiwgImtleV9vcHMiOiBbInZlcmlmeSJdfV19",
+    r#"", "protected": "eyJhbGciOiJFUzUxMiIsImN0eSI6Imp3ay1zZXQranNvbiJ9","#,
+    r#" "signature": ""#,
+    "ABhpt-sM13vNSbVWU9RA8m6fyJ95LJ1RZvuCHBfLBHhZPBWndiUJNonkkTeoe9dB-QICJLsZmRHVGenpUv-gzWruAY0JY\
+    FQJ-8groU96HVvhMzDOTL37yzkvVOQprf27S-gBf2Q4Rl09Nm4aHajSRngICjwF1PcXS9cRUVh_Nsx0tcEK",
+    r#""}"#,
+);
+
+/// Tang server internals
+const SAMPLE_JWK_DERIVE: &str = r#"{
+    "alg": "ECMR",
+    "kty": "EC",
+    "crv": "P-521",
+    "x": "AFkzkxlFhJLZS-9vPxi0m_7OWz5TJXj-gbEiWujn4DsG3ZsSzLEkw0geAqSooM7MlI-HD2n8jq93VKXqfnfph6V8",
+    "y": "AQ1_BnQucDscDJ_UfYteQ8MEg71ygw-x7gX9QZLr39QxrD8E_l61pHQxWZ_uE195t9othSVkjF-C1u5B8ftT6bDT",
+    "d": "ADF8n-jGhS41zhG0IQ6WQbdrB5NQDeduQMjB_wBA3s1rIFTT4ybl0pg08tyo77-sDAtue9x2I58-2JnJIHiQG5P7",
+    "key_ops": ["deriveKey"]
+}"#;
+
+const SAMPLE_JWK_VERIFY: &str = r#"{
+    "alg": "ES512",
+    "kty": "EC",
+    "crv": "P-521",
+    "x": "AGuaQgXt6-KQZ2a9E1Tm89Ki6cxPJ_7Aa019-rQV9ddSl6v3Z21eG10KsNyrEnHm0vTCwBWVtmZG92XxaGQk-TkX",
+    "y": "AXRZe_y5rjJ0RAvt73hYCMnzmgB_nPMSXvbncL6l0H6HRZSYC-vOZ-abNBpzKpPmoRGg7c_MTJ8gcLcG55i-ObEp",
+    "d": "AVb6rUlxKkeuew9hjgXthD_Oc44QCYN6Q61oGs-BsFB9yamBm-DrQiQn5xGMLn-R0vsTbzw8ucyUkaI_gl4q-zhT",
+    "key_ops": ["sign", "verify"]
+}"#;
+
+const SAMPLE_JWK_DERIVE_NAME: &str = "DTryOiC-dpmMBftuUMf5nBpDjBMK9Ri4rcGvBq3rFRU";
+const SAMPLE_JWK_VERIFY_NAME: &str = "wUNL__gwORwHmgKjKvVnK2rCFEWOu1oM65na-9iVcqA";
+
+#[test]
+fn test() {
+    dbg!(SAMPLE_JWS);
+}

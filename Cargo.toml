@@ -1,0 +1,23 @@
+[package]
+name = "clevis-rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "clevis_rs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "clevis-rs"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.21.0"
+clap = { version = "4.2.1", features = ["derive"] }
+josekit = "0.8.2"
+serde = "1.0.160"
+serde_json = "1.0.95"
+sha2 = "0.10.6"
+# serde_json = { version = "1.0.95", features = ["preserve_order"] }
+ureq = { version = "2.6.2", features = ["json"] }
+# vsss-rs = "2.7.1"
