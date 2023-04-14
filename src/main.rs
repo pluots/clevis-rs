@@ -1,5 +1,8 @@
+use std::io::stdin;
+
 use clap::{Args, Parser, Subcommand};
-use clevis_rs::{EncryptConfig, EncryptSource};
+use clevis_rs::{DecryptConfig, EncryptConfig, EncryptSource};
+use std::io::{BufRead, Read};
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -47,7 +50,10 @@ fn run_encryption(args: EncryptArgs) {
         source: EncryptSource::Server(args.url.unwrap()),
     };
 
-    let res = process.encrypt();
+    let mut buf: Vec<u8> = Vec::new();
+    stdin().lock().read_to_end(&mut buf).unwrap();
+
+    let res = process.encrypt(&buf);
 
     if let Err(err) = res {
         eprintln!("error: {err:?}");
@@ -55,5 +61,9 @@ fn run_encryption(args: EncryptArgs) {
 }
 
 fn run_decryption() {
-    todo!()
+    let mut buf: Vec<u8> = Vec::new();
+    stdin().lock().read_to_end(&mut buf).unwrap();
+    // stdin().lock().read_until(b'.', &mut buf).unwrap();
+    // buf.pop(); // remove trailing '.'
+    DecryptConfig::from_b64_jwe(&buf).unwrap();
 }
