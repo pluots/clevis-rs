@@ -3,7 +3,7 @@
 use std::io::stdin;
 
 use clap::{Args, Parser, Subcommand};
-use clevis_rs::{DecryptConfig, EncryptConfig, EncryptSource};
+use clevis::{DecryptConfig, EncryptConfig, EncryptSource};
 use std::io::{BufRead, Read};
 
 #[derive(Debug, Parser)]
@@ -14,20 +14,22 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Encrypt stdin data and print it to stdout
     Encrypt(EncryptArgs),
+    /// Decrypt stdin data and print it to stdout
     Decrypt { name: Option<String> },
 }
 
 #[derive(Debug, Args)]
 struct EncryptArgs {
     /// The base URL of the Tang server
-    #[arg(long)]
-    url: Option<String>,
+    #[arg(short, long)]
+    url: String,
     /// The thumbprint of a trusted signing key
-    #[arg(long)]
-    thp: Option<String>,
+    #[arg(short, long)]
+    thumbprint: Option<String>,
     /// A filename containing a trusted advertisement
-    #[arg(long)]
+    #[arg(short, long)]
     adv: Option<String>,
     /// A trusted advertisement (raw JSON)
     #[arg(long)]
@@ -38,7 +40,9 @@ struct EncryptArgs {
 }
 
 fn main() {
+    env_logger::init();
     let cli = Cli::parse();
+
     match cli.command {
         Commands::Encrypt(v) => run_encryption(v),
         Commands::Decrypt { name: _ } => run_decryption(),
@@ -46,10 +50,10 @@ fn main() {
 }
 
 fn run_encryption(args: EncryptArgs) {
-    let thp = args.thp.unwrap_or_default();
+    let thp = args.thumbprint.unwrap_or_default();
     let process = EncryptConfig {
         thp,
-        source: EncryptSource::Server(args.url.unwrap()),
+        source: EncryptSource::Server(args.url),
     };
 
     let mut buf: Vec<u8> = Vec::new();

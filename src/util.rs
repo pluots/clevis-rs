@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
+use base64::prelude::BASE64_URL_SAFE_NO_PAD;
 use base64::{prelude::BASE64_STANDARD_NO_PAD, Engine};
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::{Value as JsonValue, Map};
+use serde_json::{Map, Value as JsonValue};
 
 pub fn b64_to_str<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
@@ -19,7 +20,7 @@ where
     D: Deserializer<'de>,
 {
     String::deserialize(deserializer).and_then(|string| {
-        BASE64_STANDARD_NO_PAD
+        BASE64_URL_SAFE_NO_PAD
             .decode(&string)
             .map_err(|err| DeError::custom(dbg!(err.to_string())))
     })

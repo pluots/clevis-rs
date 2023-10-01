@@ -1,14 +1,26 @@
-use std::{io, str::Utf8Error};
+use std::{fmt, io, str::Utf8Error};
 
-pub type Result<T> = core::result::Result<T, Error>;
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 #[derive(Debug)]
 pub enum Error {
     Server(ureq::Error),
     IoError(io::Error),
-    MissingKeyOp(&'static str),
+    MissingKeyOp(Box<str>),
     Utf8(Utf8Error),
     Base64(base64::DecodeError),
+    Json(serde_json::Error),
+    Jose(josekit::JoseError),
+    VerifyKey,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::VerifyKey => write!(f, "missing a key marked 'verify'"),
+            _ => write!(f, ""),
+        }
+    }
 }
 
 impl From<ureq::Error> for Error {
@@ -32,5 +44,17 @@ impl From<Utf8Error> for Error {
 impl From<base64::DecodeError> for Error {
     fn from(value: base64::DecodeError) -> Self {
         Self::Base64(value)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Self::Json(value)
+    }
+}
+
+impl From<josekit::JoseError> for Error {
+    fn from(value: josekit::JoseError) -> Self {
+        Self::Jose(value)
     }
 }

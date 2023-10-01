@@ -17,6 +17,7 @@ use std::{
     io::{self, Write},
 };
 
+/// Data needed to perform encryption
 pub struct EncryptConfig {
     pub thp: String,
     pub source: EncryptSource,
@@ -131,6 +132,6 @@ impl TangJwsPayload {
                     v.iter().any(|ko| ko.eq_ignore_ascii_case(op_name))
                 })
             })
-            .ok_or(Error::MissingKeyOp(op_name))?)
+            .ok_or(Error::MissingKeyOp(op_name.into()))?)
     }
 }
