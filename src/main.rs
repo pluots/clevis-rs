@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::io::stdin;
 
 use clap::{Args, Parser, Subcommand};

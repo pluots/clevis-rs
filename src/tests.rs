@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 /// Sample JWS as provided from a tang server
 const SAMPLE_JWS: &str = concat!(
     r#"{"payload": ""#,
+    // The payload contains `{"keys": [...]}` with the two keys below
     "eyJrZXlzIjogW3siYWxnIjogIkVDTVIiLCAia3R5IjogIkVDIiwgImNydiI6ICJQLTUyMSIsICJ4IjogIkFGa3preGxGa\
     EpMWlMtOXZQeGkwbV83T1d6NVRKWGotZ2JFaVd1am40RHNHM1pzU3pMRWt3MGdlQXFTb29NN01sSS1IRDJuOGpxOTNWS1h\
     xZm5mcGg2VjgiLCAieSI6ICJBUTFfQm5RdWNEc2NESl9VZll0ZVE4TUVnNzF5Z3cteDdnWDlRWkxyMzlReHJEOEVfbDYxc\
@@ -11,8 +12,10 @@ const SAMPLE_JWS: &str = concat!(
     TZjeFBKXzdBYTAxOS1yUVY5ZGRTbDZ2M1oyMWVHMTBLc055ckVuSG0wdlRDd0JXVnRtWkc5Mlh4YUdRay1Ua1giLCAieSI\
     6ICJBWFJaZV95NXJqSjBSQXZ0NzNoWUNNbnptZ0JfblBNU1h2Ym5jTDZsMEg2SFJaU1lDLXZPWi1hYk5CcHpLcFBtb1JHZ\
     zdjX01USjhnY0xjRzU1aS1PYkVwIiwgImtleV9vcHMiOiBbInZlcmlmeSJdfV19",
+    // Protected only contains `{"alg":"ES512","cty":"jwk-set+json"}`
     r#"", "protected": "eyJhbGciOiJFUzUxMiIsImN0eSI6Imp3ay1zZXQranNvbiJ9","#,
     r#" "signature": ""#,
+    // Binary signature
     "ABhpt-sM13vNSbVWU9RA8m6fyJ95LJ1RZvuCHBfLBHhZPBWndiUJNonkkTeoe9dB-QICJLsZmRHVGenpUv-gzWruAY0JY\
     FQJ-8groU96HVvhMzDOTL37yzkvVOQprf27S-gBf2Q4Rl09Nm4aHajSRngICjwF1PcXS9cRUVh_Nsx0tcEK",
     r#""}"#,
