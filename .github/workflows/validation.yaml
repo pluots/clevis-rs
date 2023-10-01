@@ -1,0 +1,114 @@
+---
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+
+name: Rust Validation
+
+env:
+  RUSTDOCFLAGS: -D warnings
+  RUSTFLAGS: -D warnings -C debuginfo=1
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
+jobs:
+  check:
+    name: "Check (cargo clippy)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@1.72.1
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --all-features --all-targets -- -D warnings
+      - run: cargo clippy --no-default-features --all-targets -- -D warnings
+
+  test:
+    strategy:
+      fail-fast: true
+      matrix:
+        # os: [ubuntu-latest]
+        include:
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          # - build: macos
+          #   os: macos-latest
+          #   target: x86_64-apple-darwin
+          #   extension: ''
+          - build: windows-msvc
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    name: "Test on ${{ matrix.os }} (cargo test)"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@1.68.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+
+  integration:
+    name: "Integration testing (docker)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Start docker
+        run: >
+          docker run --rm -d
+          -v $(pwd)/tang-db:/db
+          -e ENABLE_IPv6=1
+          -p 11697:8080
+          --name tang-backend
+          padhihomelab/tang
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run integration testing
+        # Run only integration tests with `--test '*'`
+        run: cargo test --test '*' --features _backend
+      - name: Print docker logs
+        if: always()
+        run: |
+          docker logs tang-backend
+          # If any critical / debug options were printed, error out
+          docker logs tang-backend 2>&1 | grep -iE '\[(Critical|Error)\]' || exit 0 && exit 1;
+          docker stop tang-backend
+
+  fmt:
+    name: "Format (cargo fmt)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+            components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+
+  doc:
+    name: "Docs (cargo doc)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc
+
+  outdated:
+    name: Outdated
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/install@cargo-outdated
+      - run: cargo outdated --workspace --exit-code 1
+
+  security_audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: rustsec/audit-check@v1.4.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

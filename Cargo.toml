@@ -22,3 +22,6 @@ sha2 = "0.10.6"
 # serde_json = { version = "1.0.95", features = ["preserve_order"] }
 ureq = { version = "2.6.2", features = ["json"] }
 # vsss-rs = "2.7.1"
+
+[features]
+_backend = []
