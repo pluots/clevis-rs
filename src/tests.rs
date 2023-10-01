@@ -1,5 +1,7 @@
 use serde_json::{json, Value};
 
+use crate::tang_interface::Advertisment;
+
 /// Sample JWS as provided from a tang server
 const SAMPLE_JWS: &str = concat!(
     r#"{"payload": ""#,
@@ -46,6 +48,7 @@ const SAMPLE_JWK_DERIVE_NAME: &str = "DTryOiC-dpmMBftuUMf5nBpDjBMK9Ri4rcGvBq3rFR
 const SAMPLE_JWK_VERIFY_NAME: &str = "wUNL__gwORwHmgKjKvVnK2rCFEWOu1oM65na-9iVcqA";
 
 #[test]
-fn test() {
-    dbg!(SAMPLE_JWS);
+fn test_verify() {
+    let adv: Advertisment = serde_json::from_str(SAMPLE_JWS).unwrap();
+    let _ = adv.validate().unwrap();
 }
