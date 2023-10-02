@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::{sync::OnceLock, time::Duration};
 
-use crate::jose::Advertisment;
+use crate::jose::{Advertisment, JwkSet};
 use crate::util::{b64_to_bytes, b64_to_str};
 use crate::{Error, Result};
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
@@ -37,13 +37,11 @@ impl TangClient {
     }
 
     /// Advertisment step that gets all public keys. Verifies the signature
-    #[must_use]
-    pub fn fetch_public_keys(&self) -> Result<()> {
+    pub fn fetch_keys(&self) -> Result<JwkSet> {
         let url = format!("{}/adv", &self.url);
         log::debug!("fetching advertisment from '{url}'");
         let adv: Advertisment = ureq::get(&url).timeout(self.timeout).call()?.into_json()?;
-        let keys = adv.into_keys();
-        Ok(())
+        adv.into_keys()
     }
 
     // /// Fetch a public key with a key ID

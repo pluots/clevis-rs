@@ -1,6 +1,8 @@
 use crate::util::{b64_to_bytes, b64_to_str};
 use crate::{Error, Result};
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
+use josekit::jwe::alg::ecdh_es::EcdhEsJweAlgorithm;
+use josekit::jwe::{self, JweHeader};
 use josekit::jwk::Jwk;
 use josekit::jws::alg::ecdsa::EcdsaJwsAlgorithm;
 use josekit::jws::alg::eddsa::EddsaJwsAlgorithm;
@@ -69,7 +71,7 @@ impl fmt::Debug for Advertisment {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JwkSet {
     keys: Vec<Jwk>,
 }
@@ -85,6 +87,47 @@ impl JwkSet {
                 })
             })
             .ok_or(Error::MissingKeyOp(op_name.into()))
+    }
+
+    pub fn exchange_key(&self, url: Option<&str>) -> Result<()> {
+        // let exc_keys = self.keys.iter().filter(|key| {
+        //     key.key_operations().map_or(false, |key_ops| {
+        //         key_ops.iter().any(|op| op.eq_ignore_ascii_case(op_name))
+        //     })
+        // });
+        let alg = jwe::ECDH_ES;
+        let enc_alg = jwe::enc::A256GCM;
+
+        let mut derive_jwk = self.get_key_by_op("deriveKey")?.clone();
+        if derive_jwk.algorithm() == Some("ECMR") {
+            derive_jwk.set_algorithm("ECDH-ES");
+        }
+
+        let enc = alg.encrypter_from_jwk(&derive_jwk)?;
+        let mut header = JweHeader::new();
+        header.set_algorithm(dbg!(alg.name()));
+        header.set_content_encryption(dbg!(enc_alg.name()));
+        let clevis_claim = json! {{
+            "pin": "tang",
+            "tang": {
+                "adv": self,
+                "url": url.unwrap_or_default(),
+            }
+        }};
+        header.set_claim("clevis", Some(clevis_claim));
+        dbg!(&header);
+
+        let newkey = enc
+            .compute_content_encryption_key(&enc_alg, &JweHeader::new(), &mut header)?
+            .unwrap();
+        dbg!(newkey.len(), &newkey);
+        dbg!(&header);
+        // pop key_ops
+        // pop alg
+        // take the first derive key and get its thumbprint
+        // take jwe, jwk, and input and produce JWE encrypted data in compact serialization
+        // let jwk = self.get_key_by_op("deriveKey")?;
+        todo!()
     }
 }
 

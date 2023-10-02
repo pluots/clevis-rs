@@ -66,3 +66,10 @@ fn test_thumbprint() {
         SAMPLE_JWK_VERIFY_THP
     );
 }
+
+#[test]
+fn test_exchange_key() {
+    let adv: Advertisment = serde_json::from_str(SAMPLE_JWS).unwrap();
+    let keys = adv.into_keys().unwrap();
+    keys.exchange_key(None).unwrap();
+}
