@@ -95,6 +95,13 @@ enum KeyType {
     Rsa,
 }
 
+/// The key types we support
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ThpHashAlg {
+    Sha1,
+    Sha256,
+}
+
 /// Extract the key type of a jwk
 fn key_type(jwk: &Jwk) -> Result<KeyType> {
     match jwk.key_type() {
@@ -127,7 +134,7 @@ fn get_verifier(jwk: &Jwk) -> Result<Box<dyn JwsVerifier>> {
 }
 
 /// Jwk thumbprint as described in RFC7638 section 3.1.
-fn make_thumbprint(jwk: &Jwk) -> Result<String> {
+fn make_thumbprint(jwk: &Jwk, alg: ThpHashAlg) -> Result<String> {
     let kty = key_type(jwk)?;
     let to_enc = if kty == KeyType::Ec {
         let crv = get_jwk_param(jwk, "crv")?;
@@ -160,9 +167,19 @@ fn make_thumbprint(jwk: &Jwk) -> Result<String> {
     };
 
     let to_hash = to_enc.to_string();
-    let mut hasher = Sha256::new();
-    hasher.update(to_hash.as_bytes());
-    Ok(BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize()))
+
+    match alg {
+        ThpHashAlg::Sha1 => {
+            let mut hasher = sha1::Sha1::new();
+            hasher.update(to_hash.as_bytes());
+            Ok(BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize()))
+        }
+        ThpHashAlg::Sha256 => {
+            let mut hasher = Sha256::new();
+            hasher.update(to_hash.as_bytes());
+            Ok(BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize()))
+        }
+    }
 }
 
 /// Get a parameter from the JWK
