@@ -3,6 +3,7 @@
 mod decrypt;
 mod encrypt;
 mod error;
+mod jose;
 mod tang_interface;
 mod util;
 
@@ -13,6 +14,3 @@ pub use encrypt::{EncryptConfig, EncryptSource};
 pub use tang_interface::TangClient;
 
 pub use error::{Error, Result};
-
-#[cfg(test)]
-mod tests;

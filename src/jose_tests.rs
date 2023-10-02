@@ -1,9 +1,8 @@
+use super::*;
 use serde_json::{json, Value};
 
-use crate::tang_interface::Advertisment;
-
 /// Sample JWS as provided from a tang server
-const SAMPLE_JWS: &str = concat!(
+pub const SAMPLE_JWS: &str = concat!(
     r#"{"payload": ""#,
     // The payload contains `{"keys": [...]}` with the two keys below
     "eyJrZXlzIjogW3siYWxnIjogIkVDTVIiLCAia3R5IjogIkVDIiwgImNydiI6ICJQLTUyMSIsICJ4IjogIkFGa3preGxGa\
@@ -49,6 +48,7 @@ const SAMPLE_JWK_VERIFY_NAME: &str = "wUNL__gwORwHmgKjKvVnK2rCFEWOu1oM65na-9iVcq
 
 #[test]
 fn test_verify() {
+    // Ensure we can extract and validate the keys
     let adv: Advertisment = serde_json::from_str(SAMPLE_JWS).unwrap();
-    let _ = adv.validate().unwrap();
+    let _ = adv.into_keys().unwrap();
 }

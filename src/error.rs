@@ -12,12 +12,14 @@ pub enum Error {
     Json(serde_json::Error),
     Jose(josekit::JoseError),
     VerifyKey,
+    KeyType(Box<str>),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::VerifyKey => write!(f, "missing a key marked 'verify'"),
+            Self::KeyType(v) => write!(f, "unsupported key type {v}"),
             _ => write!(f, ""),
         }
     }
