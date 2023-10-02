@@ -7,6 +7,8 @@ pub enum Error {
     Server(ureq::Error),
     IoError(io::Error),
     MissingKeyOp(Box<str>),
+    JsonMissingKey(Box<str>),
+    JsonKeyType(Box<str>),
     Utf8(Utf8Error),
     Base64(base64::DecodeError),
     Json(serde_json::Error),
@@ -20,6 +22,8 @@ impl fmt::Display for Error {
         match self {
             Self::VerifyKey => write!(f, "missing a key marked 'verify'"),
             Self::KeyType(v) => write!(f, "unsupported key type {v}"),
+            Self::JsonMissingKey(v) => write!(f, "missing key {v}"),
+            Self::JsonKeyType(v) => write!(f, "invalid key type {v} in JSON"),
             _ => write!(f, ""),
         }
     }

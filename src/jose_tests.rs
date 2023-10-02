@@ -43,12 +43,20 @@ const SAMPLE_JWK_VERIFY: &str = r#"{
     "key_ops": ["sign", "verify"]
 }"#;
 
-const SAMPLE_JWK_DERIVE_NAME: &str = "DTryOiC-dpmMBftuUMf5nBpDjBMK9Ri4rcGvBq3rFRU";
-const SAMPLE_JWK_VERIFY_NAME: &str = "wUNL__gwORwHmgKjKvVnK2rCFEWOu1oM65na-9iVcqA";
+const SAMPLE_JWK_DERIVE_THP: &str = "DTryOiC-dpmMBftuUMf5nBpDjBMK9Ri4rcGvBq3rFRU";
+const SAMPLE_JWK_VERIFY_THP: &str = "wUNL__gwORwHmgKjKvVnK2rCFEWOu1oM65na-9iVcqA";
 
 #[test]
 fn test_verify() {
     // Ensure we can extract and validate the keys
     let adv: Advertisment = serde_json::from_str(SAMPLE_JWS).unwrap();
     let _ = adv.into_keys().unwrap();
+}
+
+#[test]
+fn test_thumbprint() {
+    let jwk: Jwk = serde_json::from_str(SAMPLE_JWK_DERIVE).unwrap();
+    assert_eq!(make_thumbprint(&jwk).unwrap(), SAMPLE_JWK_DERIVE_THP);
+    let jwk: Jwk = serde_json::from_str(SAMPLE_JWK_VERIFY).unwrap();
+    assert_eq!(make_thumbprint(&jwk).unwrap(), SAMPLE_JWK_VERIFY_THP);
 }

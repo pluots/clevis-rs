@@ -1,7 +1,3 @@
-use std::fmt;
-use std::ops::Deref;
-use std::{sync::OnceLock, time::Duration};
-
 use crate::util::{b64_to_bytes, b64_to_str};
 use crate::{Error, Result};
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
@@ -11,6 +7,11 @@ use josekit::jws::alg::eddsa::EddsaJwsAlgorithm;
 use josekit::jws::{self, JwsAlgorithm, JwsVerifier};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
+use sha2::Digest;
+use sha2::Sha256;
+use std::fmt;
+use std::ops::Deref;
+use std::{sync::OnceLock, time::Duration};
 
 /// Representation of a tang advertisment response which is a JWS of available keys.
 #[derive(Deserialize)]
@@ -125,7 +126,50 @@ fn get_verifier(jwk: &Jwk) -> Result<Box<dyn JwsVerifier>> {
     .map_err(Into::into)
 }
 
-fn make_thumbprint(jwk: &Jwk) {}
+/// Jwk thumbprint as described in RFC7638 section 3.1.
+fn make_thumbprint(jwk: &Jwk) -> Result<String> {
+    let kty = key_type(jwk)?;
+    let to_enc = if kty == KeyType::Ec {
+        let crv = get_jwk_param(jwk, "crv")?;
+        let crv = crv
+            .as_str()
+            .ok_or_else(|| Error::JsonKeyType(crv.to_string().into()))?;
+
+        // Only specific curves require `y`
+        let y_param = if ["P-256", "P-384", "P-521"].contains(&crv) {
+            Some(get_jwk_param(jwk, "y")?)
+        } else {
+            None
+        };
+
+        json! {{
+            "crv": get_jwk_param(jwk, "crv")?,
+            "kty": jwk.key_type(),
+            "x": get_jwk_param(jwk, "x")?,
+            "y": y_param
+        }}
+    } else if kty == KeyType::Rsa {
+        json! {{
+            "e": get_jwk_param(jwk, "e")?,
+            "kty": jwk.key_type(),
+            "n": get_jwk_param(jwk, "n")?,
+        }}
+    } else {
+        // symmetric keys need "k" and "kty"
+        unreachable!()
+    };
+
+    let to_hash = to_enc.to_string();
+    let mut hasher = Sha256::new();
+    hasher.update(to_hash.as_bytes());
+    Ok(BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize()))
+}
+
+/// Get a parameter from the JWK
+fn get_jwk_param<'a>(jwk: &'a Jwk, key: &str) -> Result<&'a Value> {
+    jwk.parameter(key)
+        .ok_or_else(|| Error::JsonMissingKey(key.into()))
+}
 
 #[cfg(test)]
 #[path = "jose_tests.rs"]
