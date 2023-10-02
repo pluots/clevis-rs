@@ -61,11 +61,14 @@ jobs:
           docker run --rm -d
           -v $(pwd)/tang-db:/db
           -e ENABLE_IPv6=1
+          # the port is "tang" in ascii
           -p 11697:8080
           --name tang-backend
           padhihomelab/tang
       - uses: dtolnay/rust-toolchain@stable
       - name: Run integration testing
+        env:
+          TEST_TANG_URL: localost:11697
         # Run only integration tests with `--test '*'`
         run: cargo test --test '*' --features _backend
       - name: Print docker logs
