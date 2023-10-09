@@ -11,5 +11,5 @@ fn make_client() -> TangClient {
 #[test]
 fn test_fetch_key() {
     let client = make_client();
-    client.fetch_public_keys().unwrap();
+    client.fetch_keys().unwrap();
 }
