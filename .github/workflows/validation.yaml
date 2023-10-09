@@ -57,11 +57,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Start docker
+      # the port used is "tang" in ascii, easy to remember
         run: >
           docker run --rm -d
           -v $(pwd)/tang-db:/db
           -e ENABLE_IPv6=1
-          # the port is "tang" in ascii
           -p 11697:8080
           --name tang-backend
           padhihomelab/tang

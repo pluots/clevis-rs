@@ -3,6 +3,9 @@
 This crate is an implementation of the clevis client to the [Tang] protocol
 used for generating encryption keys.
 
+This project is NOT officially associated with Latchset, publisher of Clevis
+and Tang.
+
 This crate is a work in progress.
 
 ## Tang

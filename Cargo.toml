@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "A preliminary Rust implementation of the clevis protocol"
 rust-version = "1.70"
+repository = "https://github.com/pluots/clevis-rs/"
 license = "GPL-3.0"
 
 [lib]
