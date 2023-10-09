@@ -3,7 +3,7 @@
 use std::io::stdin;
 
 use clap::{Args, Parser, Subcommand};
-use clevis::{DecryptConfig, EncryptConfig, EncryptSource};
+// use clevis::{DecryptConfig, EncryptConfig, EncryptSource};
 use std::io::{BufRead, Read};
 
 #[derive(Debug, Parser)]
@@ -51,19 +51,19 @@ fn main() {
 
 fn run_encryption(args: EncryptArgs) {
     let thp = args.thumbprint.unwrap_or_default();
-    let process = EncryptConfig {
-        thp,
-        source: EncryptSource::Server(args.url),
-    };
+    // let process = EncryptConfig {
+    //     thp,
+    //     source: EncryptSource::Server(args.url),
+    // };
 
-    let mut buf: Vec<u8> = Vec::new();
-    stdin().lock().read_to_end(&mut buf).unwrap();
+    // let mut buf: Vec<u8> = Vec::new();
+    // stdin().lock().read_to_end(&mut buf).unwrap();
 
-    let res = process.encrypt(&buf);
+    // let res = process.encrypt(&buf);
 
-    if let Err(err) = res {
-        eprintln!("error: {err:?}");
-    }
+    // if let Err(err) = res {
+    //     eprintln!("error: {err:?}");
+    // }
 }
 
 fn run_decryption() {
@@ -71,5 +71,5 @@ fn run_decryption() {
     stdin().lock().read_to_end(&mut buf).unwrap();
     // stdin().lock().read_until(b'.', &mut buf).unwrap();
     // buf.pop(); // remove trailing '.'
-    DecryptConfig::from_b64_jwe(&buf).unwrap();
+    // DecryptConfig::from_b64_jwe(&buf).unwrap();
 }

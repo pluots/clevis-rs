@@ -1,3 +1,4 @@
+use crate::key_exchange::create_encryption_key;
 use crate::util::{b64_to_bytes, b64_to_str};
 use crate::{Error, Result};
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
@@ -89,7 +90,7 @@ impl JwkSet {
             .ok_or(Error::MissingKeyOp(op_name.into()))
     }
 
-    pub fn exchange_key(&self, url: Option<&str>) -> Result<()> {
+    pub(crate) fn exchange_key(&self, url: Option<&str>) -> Result<()> {
         // let exc_keys = self.keys.iter().filter(|key| {
         //     key.key_operations().map_or(false, |key_ops| {
         //         key_ops.iter().any(|op| op.eq_ignore_ascii_case(op_name))
@@ -99,6 +100,9 @@ impl JwkSet {
         let enc_alg = jwe::enc::A256GCM;
 
         let mut derive_jwk = self.get_key_by_op("deriveKey")?.clone();
+
+        create_encryption_key(&derive_jwk).unwrap();
+
         if derive_jwk.algorithm() == Some("ECMR") {
             derive_jwk.set_algorithm("ECDH-ES");
         }
@@ -117,17 +121,18 @@ impl JwkSet {
         header.set_claim("clevis", Some(clevis_claim));
         dbg!(&header);
 
-        let newkey = enc
-            .compute_content_encryption_key(&enc_alg, &JweHeader::new(), &mut header)?
-            .unwrap();
-        dbg!(newkey.len(), &newkey);
-        dbg!(&header);
+        // let newkey = enc
+        //     .compute_content_encryption_key(&enc_alg, &JweHeader::new(), &mut header)?
+        //     .unwrap();
+        // dbg!(newkey.len(), &newkey);
+        // dbg!(&header);
         // pop key_ops
         // pop alg
         // take the first derive key and get its thumbprint
         // take jwe, jwk, and input and produce JWE encrypted data in compact serialization
         // let jwk = self.get_key_by_op("deriveKey")?;
-        todo!()
+        // todo!()
+        Ok(())
     }
 }
 

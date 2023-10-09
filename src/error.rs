@@ -5,6 +5,7 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 #[derive(Debug)]
 pub enum Error {
     Server(ureq::Error),
+    Algorithm(Box<str>, &'static str),
     IoError(io::Error),
     MissingKeyOp(Box<str>),
     JsonMissingKey(Box<str>),
@@ -24,6 +25,7 @@ impl fmt::Display for Error {
             Self::KeyType(v) => write!(f, "unsupported key type {v}"),
             Self::JsonMissingKey(v) => write!(f, "missing key {v}"),
             Self::JsonKeyType(v) => write!(f, "invalid key type {v} in JSON"),
+            Self::Algorithm(v, c) => write!(f, "invalid algorithm {v} for {c}"),
             _ => write!(f, ""),
         }
     }
