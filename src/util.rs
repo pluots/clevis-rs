@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
-use base64::prelude::BASE64_URL_SAFE_NO_PAD;
-use base64::{prelude::BASE64_STANDARD_NO_PAD, Engine};
+use base64ct::{Base64UrlUnpadded, Encoding};
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Map, Value as JsonValue};
@@ -20,8 +19,6 @@ where
     D: Deserializer<'de>,
 {
     String::deserialize(deserializer).and_then(|string| {
-        BASE64_URL_SAFE_NO_PAD
-            .decode(&string)
-            .map_err(|err| DeError::custom(dbg!(err.to_string())))
+        Base64UrlUnpadded::decode_vec(&string).map_err(|err| DeError::custom(err.to_string()))
     })
 }

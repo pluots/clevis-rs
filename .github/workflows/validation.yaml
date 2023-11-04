@@ -24,25 +24,15 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-features --all-targets -- -D warnings
+        env:
+          TEST_TANG_URL: '' # just for validation
       - run: cargo clippy --no-default-features --all-targets -- -D warnings
 
   test:
     strategy:
       fail-fast: true
       matrix:
-        # os: [ubuntu-latest]
-        include:
-          - build: linux
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-          # - build: macos
-          #   os: macos-latest
-          #   target: x86_64-apple-darwin
-          #   extension: ''
-          - build: windows-msvc
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-
+        os: [ubuntu-latest, macos-latest, windows-msvc]
     name: "Test on ${{ matrix.os }} (cargo test)"
     runs-on: ${{ matrix.os }}
     steps:
@@ -66,9 +56,10 @@ jobs:
           --name tang-backend
           padhihomelab/tang
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Run integration testing
         env:
-          TEST_TANG_URL: localost:11697
+          TEST_TANG_URL: localhost:11697
         # Run only integration tests with `--test '*'`
         run: cargo test --test '*' --features _backend
       - name: Print docker logs
@@ -102,11 +93,11 @@ jobs:
   outdated:
     name: Outdated
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/install@cargo-outdated
+      - uses: Swatinem/rust-cache@v2
       - run: cargo outdated --workspace --exit-code 1
 
   security_audit:
