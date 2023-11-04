@@ -1,7 +1,7 @@
 use crate::key_exchange::create_encryption_key;
 use crate::util::{b64_to_bytes, b64_to_str};
 use crate::{Error, Result};
-use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
+use base64ct::{Base64UrlUnpadded, Encoding};
 use josekit::jwe::alg::ecdh_es::EcdhEsJweAlgorithm;
 use josekit::jwe::{self, JweHeader};
 use josekit::jwk::Jwk;
@@ -17,6 +17,8 @@ use std::ops::Deref;
 use std::{sync::OnceLock, time::Duration};
 
 /// Representation of a tang advertisment response which is a JWS of available keys.
+///
+/// This is what is produced when you GET `tang_url/adv`.
 #[derive(Deserialize)]
 pub struct Advertisment {
     #[serde(deserialize_with = "b64_to_str")]
@@ -34,16 +36,24 @@ impl Advertisment {
         let verifier = get_verifier(verify_jwk)?;
 
         // B64 is 4/3 data length, plus a `.`
-        let verify_len = ((self.payload.len() + self.protected.len()) * 4 / 3) + 1;
-        let mut to_verify = String::with_capacity(verify_len);
+        let payload_b64_len = Base64UrlUnpadded::encoded_len(self.payload.as_bytes());
+        let protected_b64_len = Base64UrlUnpadded::encoded_len(self.protected.as_bytes());
+        let mut to_verify = vec![b'.'; payload_b64_len + 1 + protected_b64_len];
 
         // The format `b64(HEADER).b64(PAYLOAD)` is used for validation
-        BASE64_URL_SAFE_NO_PAD.encode_string(&self.protected, &mut to_verify);
-        to_verify.push('.');
-        BASE64_URL_SAFE_NO_PAD.encode_string(&self.payload, &mut to_verify);
+        Base64UrlUnpadded::encode(
+            self.protected.as_bytes(),
+            &mut to_verify[..protected_b64_len],
+        )
+        .unwrap();
+        Base64UrlUnpadded::encode(
+            self.payload.as_bytes(),
+            &mut to_verify[(protected_b64_len + 1)..],
+        )
+        .unwrap();
 
         verifier
-            .verify(to_verify.as_bytes(), &self.signature)
+            .verify(&to_verify, &self.signature)
             .map_err(Into::into)
     }
 
@@ -67,7 +77,10 @@ impl fmt::Debug for Advertisment {
         f.debug_struct("Advertisment")
             .field("payload", &json_field(&self.payload))
             .field("protected", &json_field(&self.protected))
-            .field("signature", &BASE64_URL_SAFE_NO_PAD.encode(&self.signature))
+            .field(
+                "signature",
+                &Base64UrlUnpadded::encode_string(&self.signature),
+            )
             .finish()
     }
 }
@@ -220,12 +233,12 @@ fn make_thumbprint(jwk: &Jwk, alg: ThpHashAlg) -> Result<String> {
         ThpHashAlg::Sha1 => {
             let mut hasher = sha1::Sha1::new();
             hasher.update(to_hash.as_bytes());
-            Ok(BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize()))
+            Ok(Base64UrlUnpadded::encode_string(&hasher.finalize()))
         }
         ThpHashAlg::Sha256 => {
             let mut hasher = Sha256::new();
             hasher.update(to_hash.as_bytes());
-            Ok(BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize()))
+            Ok(Base64UrlUnpadded::encode_string(&hasher.finalize()))
         }
     }
 }

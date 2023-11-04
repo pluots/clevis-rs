@@ -5,7 +5,7 @@ use std::{sync::OnceLock, time::Duration};
 use crate::jose::{Advertisment, JwkSet};
 use crate::util::{b64_to_bytes, b64_to_str};
 use crate::{Error, Result};
-use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
+use base64ct::{Base64UrlUnpadded, Encoding};
 use josekit::jwk::Jwk;
 use josekit::jws::alg::ecdsa::EcdsaJwsAlgorithm;
 use josekit::jws::alg::eddsa::EddsaJwsAlgorithm;
@@ -16,6 +16,7 @@ use serde_json::{json, Value};
 const DEFAULT_URL: &str = "http://tang.local";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// A tang server connection specification
 #[derive(Clone, Debug)]
 pub struct TangClient {
     url: String,

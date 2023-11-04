@@ -4,14 +4,14 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 #[derive(Debug)]
 pub enum Error {
-    Server(ureq::Error),
+    Server(Box<ureq::Error>),
     Algorithm(Box<str>, &'static str),
     IoError(io::Error),
     MissingKeyOp(Box<str>),
     JsonMissingKey(Box<str>),
     JsonKeyType(Box<str>),
     Utf8(Utf8Error),
-    Base64(base64::DecodeError),
+    Base64(base64ct::Error),
     Json(serde_json::Error),
     Jose(josekit::JoseError),
     VerifyKey,
@@ -33,7 +33,7 @@ impl fmt::Display for Error {
 
 impl From<ureq::Error> for Error {
     fn from(value: ureq::Error) -> Self {
-        Error::Server(value)
+        Error::Server(value.into())
     }
 }
 
@@ -49,8 +49,8 @@ impl From<Utf8Error> for Error {
     }
 }
 
-impl From<base64::DecodeError> for Error {
-    fn from(value: base64::DecodeError) -> Self {
+impl From<base64ct::Error> for Error {
+    fn from(value: base64ct::Error) -> Self {
         Self::Base64(value)
     }
 }
