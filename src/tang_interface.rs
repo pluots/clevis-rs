@@ -1,19 +1,10 @@
-use std::fmt;
-use std::ops::Deref;
-use std::{sync::OnceLock, time::Duration};
+use std::time::Duration;
 
-use crate::jose::{Advertisment, JwkSet};
-use crate::util::{b64_to_bytes, b64_to_str};
-use crate::{Error, Result};
-use base64ct::{Base64UrlUnpadded, Encoding};
+use crate::jose::{Advertisment, GeneratedKey, JwkSet, KeyMeta};
+use crate::{EncryptionKey, Result};
 use josekit::jwk::Jwk;
-use josekit::jws::alg::ecdsa::EcdsaJwsAlgorithm;
-use josekit::jws::alg::eddsa::EddsaJwsAlgorithm;
-use josekit::jws::{self, JwsAlgorithm, JwsVerifier};
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::{json, Value};
 
-const DEFAULT_URL: &str = "http://tang.local";
+// const DEFAULT_URL: &str = "http://tang.local";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// A tang server connection specification
@@ -37,12 +28,46 @@ impl TangClient {
         }
     }
 
+    /// Locate derive keys from the server and create an encryption key with specified length.
+    pub fn create_secure_key<const KEYBYTES: usize>(&self) -> Result<GeneratedKey<KEYBYTES>> {
+        let (keys, signing_thp) = self.fetch_keys(None)?;
+        keys.make_tang_enc_key(&self.url, signing_thp)
+    }
+
+    /// A version of [`Self::create_secure_key`] that accepts a thumbprint.
+    pub fn create_secure_key_trusted_key<const KEYBYTES: usize>(
+        &self,
+        thumbprint: &str,
+    ) -> Result<GeneratedKey<KEYBYTES>> {
+        let (keys, signing_thp) = self.fetch_keys(Some(thumbprint))?;
+        keys.make_tang_enc_key(&self.url, signing_thp)
+    }
+
+    /// Recover a secure key using metadata that was stored
+    pub fn recover_secure_key<const KEYBYTES: usize>(
+        &self,
+        meta: KeyMeta,
+    ) -> Result<EncryptionKey<KEYBYTES>> {
+        meta.recover_key(|kid, x_pub_jwk| self.fetch_recovery_key(kid, x_pub_jwk))
+    }
+
     /// Advertisment step that gets all public keys. Verifies the signature
-    pub fn fetch_keys(&self) -> Result<JwkSet> {
-        let url = format!("{}/adv", &self.url);
+    fn fetch_keys(&self, thumbprint: Option<&str>) -> Result<(JwkSet, Box<str>)> {
+        let url = format!("{}/adv/{}", &self.url, thumbprint.unwrap_or(""));
         log::debug!("fetching advertisment from '{url}'");
         let adv: Advertisment = ureq::get(&url).timeout(self.timeout).call()?.into_json()?;
-        adv.into_keys()
+        adv.validate_into_keys(thumbprint)
+    }
+
+    fn fetch_recovery_key(&self, kid: &str, x_pub_jwk: &Jwk) -> Result<Jwk> {
+        let url = format!("{}/rec/{kid}", &self.url);
+        log::debug!("requesting recovery key from '{url}'");
+        ureq::post(&url)
+            .timeout(self.timeout)
+            .set("Content-Type", "application/jwk+json")
+            .send_json(x_pub_jwk)?
+            .into_json()
+            .map_err(Into::into)
     }
 
     // /// Fetch a public key with a key ID

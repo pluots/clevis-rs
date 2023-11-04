@@ -1,9 +1,6 @@
-use std::collections::BTreeMap;
-
 use base64ct::{Base64UrlUnpadded, Encoding};
 use serde::de::Error as DeError;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::{Map, Value as JsonValue};
+use serde::{Deserialize, Deserializer};
 
 pub fn b64_to_str<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
