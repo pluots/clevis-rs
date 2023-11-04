@@ -1,25 +1,19 @@
-use crate::key_exchange::create_encryption_key;
+use crate::key_exchange::{create_enc_key, recover_enc_key};
 use crate::util::{b64_to_bytes, b64_to_str};
-use crate::{Error, Result};
+use crate::{EncryptionKey, Error, Result};
 use base64ct::{Base64UrlUnpadded, Encoding};
-use josekit::jwe::alg::ecdh_es::EcdhEsJweAlgorithm;
-use josekit::jwe::{self, JweHeader};
 use josekit::jwk::Jwk;
-use josekit::jws::alg::ecdsa::EcdsaJwsAlgorithm;
-use josekit::jws::alg::eddsa::EddsaJwsAlgorithm;
-use josekit::jws::{self, JwsAlgorithm, JwsVerifier};
-use serde::{Deserialize, Deserializer, Serialize};
+use josekit::jws::{self, JwsVerifier};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Digest;
 use sha2::Sha256;
 use std::fmt;
-use std::ops::Deref;
-use std::{sync::OnceLock, time::Duration};
 
 /// Representation of a tang advertisment response which is a JWS of available keys.
 ///
 /// This is what is produced when you GET `tang_url/adv`.
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct Advertisment {
     #[serde(deserialize_with = "b64_to_str")]
     protected: String,
@@ -31,8 +25,20 @@ pub struct Advertisment {
 
 impl Advertisment {
     /// Validate the entire advertisment. This checks the `verify` key correctly signs the data.
-    fn validate(&self, jwks: &JwkSet) -> Result<()> {
-        let verify_jwk = jwks.get_key_by_op("verify")?;
+    ///
+    /// If a thumbprint is specified, only use a verify key with that thumbprint. Otherwise,
+    /// use any verify key.
+    fn validate(&self, jwks: &JwkSet, thumbprint: Option<&str>) -> Result<Box<str>> {
+        let (verify_jwk, thp) = if let Some(thp) = thumbprint {
+            (jwks.get_key_by_id(thp)?, Box::from(thp))
+        } else {
+            let verify_jwk = jwks.get_key_by_op("verify")?;
+            (
+                verify_jwk,
+                make_thumbprint(verify_jwk, ThpHashAlg::Sha256)?.into(),
+            )
+        };
+        // jwks.get_key_by_id()
         let verifier = get_verifier(verify_jwk)?;
 
         // B64 is 4/3 data length, plus a `.`
@@ -52,16 +58,15 @@ impl Advertisment {
         )
         .unwrap();
 
-        verifier
-            .verify(&to_verify, &self.signature)
-            .map_err(Into::into)
+        verifier.verify(&to_verify, &self.signature)?;
+        Ok(thp)
     }
 
     /// Validate the advertisment and extract its keys
-    pub fn into_keys(self) -> Result<JwkSet> {
+    pub fn validate_into_keys(self, thumbprint: Option<&str>) -> Result<(JwkSet, Box<str>)> {
         let jwks: JwkSet = serde_json::from_str(&self.payload)?;
-        self.validate(&jwks)?;
-        Ok(jwks)
+        let thp = self.validate(&jwks, thumbprint)?;
+        Ok((jwks, thp))
     }
 }
 
@@ -85,7 +90,8 @@ impl fmt::Debug for Advertisment {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+/// The response from a Tang server, containing a list of possible keys to use for derivation
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JwkSet {
     keys: Vec<Jwk>,
 }
@@ -103,49 +109,48 @@ impl JwkSet {
             .ok_or(Error::MissingKeyOp(op_name.into()))
     }
 
-    pub(crate) fn exchange_key(&self, url: Option<&str>) -> Result<()> {
-        // let exc_keys = self.keys.iter().filter(|key| {
-        //     key.key_operations().map_or(false, |key_ops| {
-        //         key_ops.iter().any(|op| op.eq_ignore_ascii_case(op_name))
-        //     })
-        // });
-        let alg = jwe::ECDH_ES;
-        let enc_alg = jwe::enc::A256GCM;
-
-        let mut derive_jwk = self.get_key_by_op("deriveKey")?.clone();
-
-        create_encryption_key(&derive_jwk).unwrap();
-
-        if derive_jwk.algorithm() == Some("ECMR") {
-            derive_jwk.set_algorithm("ECDH-ES");
-        }
-
-        let enc = alg.encrypter_from_jwk(&derive_jwk)?;
-        let mut header = JweHeader::new();
-        header.set_algorithm(dbg!(alg.name()));
-        header.set_content_encryption(dbg!(enc_alg.name()));
-        let clevis_claim = json! {{
-            "pin": "tang",
-            "tang": {
-                "adv": self,
-                "url": url.unwrap_or_default(),
+    pub(crate) fn get_key_by_id(&self, kid: &str) -> Result<&Jwk> {
+        for key in &self.keys {
+            let thp_sha256 = make_thumbprint(key, ThpHashAlg::Sha256)?;
+            if thp_sha256 == kid {
+                return Ok(key);
             }
-        }};
-        header.set_claim("clevis", Some(clevis_claim));
-        dbg!(&header);
+            let thp_sha1 = make_thumbprint(key, ThpHashAlg::Sha1)?;
+            if thp_sha1 == kid {
+                return Ok(key);
+            }
+        }
+        Err(Error::MissingPublicKey)
+    }
 
-        // let newkey = enc
-        //     .compute_content_encryption_key(&enc_alg, &JweHeader::new(), &mut header)?
-        //     .unwrap();
-        // dbg!(newkey.len(), &newkey);
-        // dbg!(&header);
-        // pop key_ops
-        // pop alg
-        // take the first derive key and get its thumbprint
-        // take jwe, jwk, and input and produce JWE encrypted data in compact serialization
-        // let jwk = self.get_key_by_op("deriveKey")?;
-        // todo!()
-        Ok(())
+    pub(crate) fn make_tang_enc_key<const N: usize>(
+        &self,
+        url: &str,
+        signing_thumbprint: Box<str>,
+    ) -> Result<GeneratedKey<N>> {
+        let derive_jwk = self.get_key_by_op("deriveKey")?.clone();
+
+        let (epk, encryption_key) = create_enc_key(&derive_jwk)?;
+        let clevis = ClevisParams {
+            pin: "tang".into(),
+            tang: TangParams {
+                adv: self.clone(),
+                url: url.into(),
+            },
+        };
+        let meta = KeyMeta {
+            alg: "ECDH-ES".into(),
+            clevis,
+            enc: None,
+            epk,
+            kid: make_thumbprint(&derive_jwk, ThpHashAlg::Sha256)?.into(),
+        };
+
+        Ok(GeneratedKey {
+            encryption_key,
+            signing_thumbprint,
+            meta,
+        })
     }
 }
 
@@ -247,6 +252,75 @@ fn make_thumbprint(jwk: &Jwk, alg: ThpHashAlg) -> Result<String> {
 fn get_jwk_param<'a>(jwk: &'a Jwk, key: &str) -> Result<&'a Value> {
     jwk.parameter(key)
         .ok_or_else(|| Error::JsonMissingKey(key.into()))
+}
+
+pub struct GeneratedKey<const KEYBYTES: usize> {
+    /// Use this key to encrypt data
+    pub encryption_key: EncryptionKey<KEYBYTES>,
+    /// The thumbprint used for signing. Future keys can be requested using this thumbprint.
+    pub signing_thumbprint: Box<str>,
+
+    /// Metadata required to regenerate an encryption key.
+    ///
+    /// Both this metadata and a connection to the Tang server are needed to regenerate the
+    /// key for use with encryption. This data can be stored in JSON form.
+    ///
+    /// Note that while this data does not contain the encryption key, it should still not
+    /// be exposed. Any device that can read this metadata could potentially decrypt
+    /// the ciphertext if it has access to the Tang server.
+    pub meta: KeyMeta,
+}
+
+/// Store this to retrieve the key
+#[derive(Debug, Deserialize, Serialize)]
+pub struct KeyMeta {
+    /// Key exchange algorithm. Typically Elliptic Curve Diffie-Hellman Ephemeral Static
+    /// (ECDH-ES) with the concat KDF.
+    alg: Box<str>,
+    clevis: ClevisParams,
+    /// Encryption algorithm
+    enc: Option<Box<str>>,
+    /// Our public key that is used to create the encryption key
+    epk: Jwk,
+    /// Key ID of the derive key, i.e. key used to generate the secret (not signing key)
+    kid: Box<str>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct ClevisParams {
+    /// This is always `tang` I think...
+    pin: Box<str>,
+    tang: TangParams,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct TangParams {
+    /// Keys from the initial tang response
+    adv: JwkSet,
+    /// Tang URL
+    url: Box<str>,
+}
+
+impl KeyMeta {
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).expect("serialization failure")
+    }
+
+    pub fn from_json(val: &str) -> Result<Self> {
+        serde_json::from_str(val).map_err(Into::into)
+    }
+
+    pub(crate) fn recover_key<const N: usize>(
+        &self,
+        server_key_exchange: impl FnOnce(&str, &Jwk) -> Result<Jwk>,
+    ) -> Result<EncryptionKey<N>> {
+        let c_pub_jwk = &self.epk;
+        let kid = &self.kid;
+        let s_pub_jwk = self.clevis.tang.adv.get_key_by_id(kid)?;
+        recover_enc_key(c_pub_jwk, s_pub_jwk, |x_pub_jwk| {
+            server_key_exchange(kid, x_pub_jwk)
+        })
+    }
 }
 
 #[cfg(test)]

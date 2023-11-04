@@ -1,5 +1,4 @@
 use super::*;
-use serde_json::{json, Value};
 
 /// Sample JWS as provided from a tang server
 pub const SAMPLE_JWS: &str = concat!(
@@ -50,7 +49,8 @@ const SAMPLE_JWK_VERIFY_THP: &str = "wUNL__gwORwHmgKjKvVnK2rCFEWOu1oM65na-9iVcqA
 fn test_verify() {
     // Ensure we can extract and validate the keys
     let adv: Advertisment = serde_json::from_str(SAMPLE_JWS).unwrap();
-    let _ = adv.into_keys().unwrap();
+    let _ = adv.clone().validate_into_keys(None).unwrap();
+    let _ = adv.validate_into_keys(Some("foo")).unwrap_err();
 }
 
 #[test]
@@ -70,6 +70,22 @@ fn test_thumbprint() {
 #[test]
 fn test_exchange_key() {
     let adv: Advertisment = serde_json::from_str(SAMPLE_JWS).unwrap();
-    let keys = adv.into_keys().unwrap();
-    keys.exchange_key(None).unwrap();
+    let (keys, thp) = adv.validate_into_keys(None).unwrap();
+    let GeneratedKey {
+        encryption_key: _,
+        signing_thumbprint,
+        meta,
+    } = keys.make_tang_enc_key::<10>("foobar", thp.clone()).unwrap();
+    assert_eq!(signing_thumbprint, thp);
+
+    // Make sure we have all the correct top-level keys
+    let mut expected_keys = vec!["alg", "clevis", "enc", "epk", "kid"];
+    expected_keys.sort_unstable();
+
+    let val = serde_json::to_value(&meta).unwrap();
+    let mut keys = val.as_object().unwrap().keys().collect::<Vec<_>>();
+    keys.sort_unstable();
+    assert_eq!(keys, expected_keys);
+
+    println!("{}", serde_json::to_string_pretty(&meta).unwrap());
 }
