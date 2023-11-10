@@ -16,6 +16,7 @@ pub struct TangClient {
 
 impl TangClient {
     /// Create a new client. If timeout is not specified, it will default to 120s.
+    #[must_use]
     pub fn new(url: &str, timeout: Option<Duration>) -> Self {
         let url = if url.starts_with("http") {
             url.to_owned()
@@ -46,7 +47,7 @@ impl TangClient {
     /// Recover a secure key using metadata that was stored
     pub fn recover_secure_key<const KEYBYTES: usize>(
         &self,
-        meta: KeyMeta,
+        meta: &KeyMeta,
     ) -> Result<EncryptionKey<KEYBYTES>> {
         meta.recover_key(|kid, x_pub_jwk| self.fetch_recovery_key(kid, x_pub_jwk))
     }

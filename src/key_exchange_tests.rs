@@ -1,6 +1,6 @@
 //! Tests to verify we match with `jose jwk exc`
 //!
-//! Quoting from https://www.mankier.com/1/jose-jwk-exc:
+//! Quoting from <https://www.mankier.com/1/jose-jwk-exc>:
 //!
 //!
 //! > The ECMR algorithm has three modes of operation. Where the local key has a
