@@ -31,7 +31,7 @@ fn test_roundtrip() {
     // --- recovery ---
 
     let new_meta = KeyMeta::from_json(&meta_str).unwrap();
-    let newkey = client.recover_secure_key::<10>(new_meta).unwrap();
+    let newkey = client.recover_secure_key::<10>(&new_meta).unwrap();
 
     assert_eq!(encryption_key.as_bytes(), newkey.as_bytes());
 }

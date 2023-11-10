@@ -302,6 +302,7 @@ struct TangParams {
 }
 
 impl KeyMeta {
+    #[must_use]
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("serialization failure")
     }

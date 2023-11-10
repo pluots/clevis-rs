@@ -25,6 +25,7 @@ pub struct EncryptionKey<const N: usize>(Zeroizing<[u8; N]>);
 
 impl<const N: usize> EncryptionKey<N> {
     /// Return the secret key
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8; N] {
         &self.0
     }
@@ -57,8 +58,7 @@ fn eccurve_from_jwk(jwk: &Jwk) -> Result<EcCurve> {
 ///   key used to encrypt data, and also satisfies `K = [cs]G`
 pub fn create_enc_key<const N: usize>(s_pub_jwk: &Jwk) -> Result<(Jwk, EncryptionKey<N>)> {
     match s_pub_jwk.algorithm() {
-        Some("ECMR") => (),
-        Some("ECDH-ES") => (),
+        Some("ECMR" | "ECDH-ES") => (),
         alg => {
             return Err(Error::Algorithm(
                 alg.unwrap_or("none").into(),
@@ -119,15 +119,15 @@ where
 ///
 /// From the clevis docs:
 ///
-/// To recover dJWK after discarding it, the client generates a third
-/// ephemeral key (eJWK). Using eJWK, the client performs elliptic curve group
-/// addition of eJWK and cJWK, producing xJWK. The client POSTs xJWK to the server.
+/// To recover `dJWK` after discarding it, the client generates a third
+/// ephemeral key (`eJWK`). Using `eJWK`, the client performs elliptic curve group
+/// addition of `eJWK` and `cJWK`, producing `xJWK`. The client POSTs `xJWK` to the server.
 ///
-/// The server then performs its half of the ECDH key exchange using xJWK and sJWK,
-/// producing yJWK. The server returns yJWK to the client.
+/// The server then performs its half of the ECDH key exchange using `xJWK` and `sJWK`,
+/// producing `yJWK`. The server returns `yJWK` to the client.
 ///
-/// The client then performs half of an ECDH key exchange between eJWK and sJWK,
-/// producing zJWK. Subtracting zJWK from yJWK produces dJWK again.
+/// The client then performs half of an ECDH key exchange between `eJWK` and `sJWK`,
+/// producing `zJWK`. Subtracting `zJWK` from `yJWK` produces `dJWK` again.
 //
 /// Expressed mathematically (capital = private key):
 ///
@@ -173,7 +173,7 @@ where
     Ok(secret_to_key(k))
 }
 
-/// Reimplementation of elliptic_curve::ecdh::diffie_hellman that works with our types easier
+/// Reimplementation of `elliptic_curve::ecdh::diffie_hellman` that works with our types easier
 ///
 /// This is standard ECDH, and first mode of the so-called "ECMR" algorithm
 fn diffie_hellman<C>(
@@ -216,6 +216,7 @@ where
         .map_err(|_| Error::IdentityPointCreated)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn secret_to_key<C: Curve, const KEYBYTES: usize>(
     secret: SharedSecret<C>,
 ) -> EncryptionKey<KEYBYTES> {
