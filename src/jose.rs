@@ -302,11 +302,13 @@ struct TangParams {
 }
 
 impl KeyMeta {
+    /// Serialize this data to a JSON string
     #[must_use]
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("serialization failure")
     }
 
+    /// Deserialize this data from a JSON string
     pub fn from_json(val: &str) -> Result<Self> {
         serde_json::from_str(val).map_err(Into::into)
     }
