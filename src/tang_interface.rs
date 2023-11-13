@@ -1,8 +1,7 @@
 use std::time::Duration;
 
-use crate::jose::{Advertisment, GeneratedKey, JwkSet, KeyMeta};
+use crate::jose::{Advertisment, GeneratedKey, Jwk, JwkSet, KeyMeta};
 use crate::{EncryptionKey, Result};
-use josekit::jwk::Jwk;
 
 // const DEFAULT_URL: &str = "http://tang.local";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
@@ -70,10 +69,4 @@ impl TangClient {
             .into_json()
             .map_err(Into::into)
     }
-
-    // /// Fetch a public key with a key ID
-    // pub fn fetch_public_key(url: &str, key_id: String) {}
-
-    // /// Perform recovery
-    // pub fn recover_key(url: &str, key_id: String) {}
 }

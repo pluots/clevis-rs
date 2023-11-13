@@ -13,6 +13,8 @@
 //!
 //! We provide each mode with a separate function and test against the jose output
 
+use crate::jose::Jwk;
+
 use super::*;
 use serde_json::Value;
 
@@ -71,15 +73,15 @@ const ADDITION: &str = r#"{
 // }"#;
 
 fn pub1_jwk() -> PublicKey<p521::NistP521> {
-    jwk_to_pub(&serde_json::from_str(PUB1).unwrap()).unwrap()
+    EcJwk::to_pub(&serde_json::from_str(PUB1).unwrap()).unwrap()
 }
 
 fn pub2_jwk() -> PublicKey<p521::NistP521> {
-    jwk_to_pub(&serde_json::from_str(PUB2).unwrap()).unwrap()
+    EcJwk::to_pub(&serde_json::from_str(PUB2).unwrap()).unwrap()
 }
 
 fn priv_jwk() -> SecretKey<p521::NistP521> {
-    jwk_to_priv(&serde_json::from_str(PRIV).unwrap()).unwrap()
+    EcJwk::to_priv(&serde_json::from_str(PRIV).unwrap()).unwrap()
 }
 
 fn assert_json_eq(left: &str, right: &str) {
@@ -190,15 +192,14 @@ fn test_roundtrip_jwk() {
 
     // Pretend to be the server
     let server_key_exchange = |x_pub_jwk: &Jwk| -> Result<Jwk> {
-        let x_pub = jwk_to_pub(x_pub_jwk).unwrap();
+        let x_pub = x_pub_jwk.as_ec().unwrap().to_pub().unwrap();
         let y_pub = diffie_hellman(&s_priv, &x_pub).unwrap();
-        Ok(jwk_from_pub(&y_pub))
+        Ok(EcJwk::from_pub(&y_pub).into())
     };
 
     let s_pub = s_priv.public_key();
 
-    let mut s_pub_jwk = jwk_from_pub(&s_pub);
-    s_pub_jwk.set_algorithm("ECMR");
+    let s_pub_jwk = EcJwk::from_pub(&s_pub);
     dbg!(&s_pub_jwk);
 
     let (c_pub_jwk, k1) = create_enc_key::<10>(&s_pub_jwk).unwrap();
