@@ -1,13 +1,17 @@
 use std::fmt;
 use std::time::Duration;
 
+use aead::generic_array::ArrayLength;
 use base64ct::{Base64Url, Base64UrlUnpadded, Encoding};
+use ecdsa::signature::Verifier;
+use ecdsa::{Signature, SignatureSize, VerifyingKey};
 use elliptic_curve::sec1::{EncodedPoint, FromEncodedPoint, ModulusSize, ToEncodedPoint};
 use elliptic_curve::zeroize::Zeroizing;
 #[cfg(test)]
 use elliptic_curve::SecretKey;
 use elliptic_curve::{
-    AffinePoint, Curve, CurveArithmetic, FieldBytes, FieldBytesSize, JwkParameters, PublicKey,
+    AffinePoint, Curve, CurveArithmetic, FieldBytes, FieldBytesSize, JwkParameters, PrimeCurve,
+    PublicKey,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -249,8 +253,8 @@ impl EcJwk {
 
     pub(crate) fn verify(&self, message: &[u8], signature: &[u8]) -> Result<()> {
         match self.get_curve()? {
-            JwkCurve::P256 => self.verify_p256(message, signature),
-            JwkCurve::P384 => self.verify_p384(message, signature),
+            JwkCurve::P256 => self.verify_inner::<p256::NistP256>(message, signature),
+            JwkCurve::P384 => self.verify_inner::<p384::NistP384>(message, signature),
             JwkCurve::P521 => self.verify_p521(message, signature),
         }
     }
@@ -265,32 +269,24 @@ impl EcJwk {
         alg.hash_data_to_string(to_enc.to_string().as_bytes())
     }
 
+    fn verify_inner<C>(&self, msg: &[u8], sig: &[u8]) -> Result<()>
+    where
+        C: CurveArithmetic + PrimeCurve + JwkParameters,
+        VerifyingKey<C>: Verifier<Signature<C>>,
+        AffinePoint<C>: FromEncodedPoint<C> + ToEncodedPoint<C>,
+        FieldBytesSize<C>: ModulusSize,
+        SignatureSize<C>: ArrayLength<u8>,
+    {
+        let pubkey = self.to_pub::<C>()?;
+        let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
+        let signature = Signature::from_slice(sig)?;
+        verify_key
+            .verify(msg, &signature)
+            .map_err(|_| Error::FailedVerification)
+    }
+
     // FIXME: switch these to use generics once p521 uses the `ecdsa` crate traits
-
-    fn verify_p256(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
-        use p256::ecdsa::signature::Verifier;
-        use p256::ecdsa::{Signature, VerifyingKey};
-        let pubkey = self.to_pub::<p256::NistP256>()?;
-        let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
-        let signature = Signature::from_slice(sig)?;
-        verify_key
-            .verify(msg, &signature)
-            .map_err(|_| Error::FailedVerification)
-    }
-
-    fn verify_p384(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
-        use p384::ecdsa::signature::Verifier;
-        use p384::ecdsa::{Signature, VerifyingKey};
-        let pubkey = self.to_pub::<p384::NistP384>()?;
-        let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
-        let signature = Signature::from_slice(sig)?;
-        verify_key
-            .verify(msg, &signature)
-            .map_err(|_| Error::FailedVerification)
-    }
-
     fn verify_p521(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
-        use p521::ecdsa::signature::Verifier;
         use p521::ecdsa::{Signature, VerifyingKey};
         let pubkey = self.to_pub::<p521::NistP521>()?;
         let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
