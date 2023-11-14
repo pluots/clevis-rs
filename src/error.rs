@@ -1,13 +1,13 @@
 use std::{fmt, io, str::Utf8Error};
 
-use josekit::jwk::Jwk;
+use crate::jose::Jwk;
 
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 #[derive(Debug)]
 pub enum Error {
     Server(Box<ureq::Error>),
-    Algorithm(Box<str>, &'static str),
+    Algorithm(Box<str>),
     IoError(io::Error),
     MissingKeyOp(Box<str>),
     JsonMissingKey(Box<str>),
@@ -15,20 +15,22 @@ pub enum Error {
     Utf8(Utf8Error),
     Base64(base64ct::Error),
     Json(serde_json::Error),
-    Jose(josekit::JoseError),
+    // Jose(josekit::JoseError),
     KeyType(Box<str>),
     VerifyKey,
-    InvalidPublicKey(Jwk),
-    EllipitcCurve(elliptic_curve::Error),
+    InvalidPublicKey(Box<Jwk>),
+    EllipitcCurve,
     MissingPublicKey,
     IdentityPointCreated,
+    EcDsa,
+    FailedVerification,
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Server(e) => write!(f, "server error: {e}"),
-            Self::Algorithm(v, c) => write!(f, "invalid algorithm {v} for {c}"),
+            Self::Algorithm(v) => write!(f, "unsupported algorithm {v}"),
             Error::IoError(e) => write!(f, "io error {e}"),
             Error::MissingKeyOp(e) => write!(f, "no key operation {e}"),
             Error::Json(e) => write!(f, "json serde error: {e}"),
@@ -38,11 +40,13 @@ impl fmt::Display for Error {
             Error::Base64(e) => write!(f, "base64 error {e}"),
             Self::VerifyKey => write!(f, "missing a key marked 'verify'"),
             Self::KeyType(v) => write!(f, "unsupported key type {v}"),
-            Error::Jose(e) => write!(f, "jose error {e}"),
+            // Error::Jose(e) => write!(f, "jose error {e}"),
             Error::InvalidPublicKey(key) => write!(f, "invalid public key {key}"),
-            Error::EllipitcCurve(_) => write!(f, "elliptic curve cryptography"),
+            Error::EllipitcCurve => write!(f, "elliptic curve cryptography"),
             Error::MissingPublicKey => write!(f, "could not locate a key with the correct key ID"),
             Error::IdentityPointCreated => write!(f, "math resulted an an identity key"),
+            Error::EcDsa => write!(f, "error with verification"),
+            Error::FailedVerification => write!(f, "key verification failed"),
         }
     }
 }
@@ -79,14 +83,14 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-impl From<josekit::JoseError> for Error {
-    fn from(value: josekit::JoseError) -> Self {
-        Self::Jose(value)
+impl From<elliptic_curve::Error> for Error {
+    fn from(_value: elliptic_curve::Error) -> Self {
+        Self::EllipitcCurve
     }
 }
 
-impl From<elliptic_curve::Error> for Error {
-    fn from(value: elliptic_curve::Error) -> Self {
-        Self::EllipitcCurve(value)
+impl From<ecdsa::Error> for Error {
+    fn from(_value: ecdsa::Error) -> Self {
+        Self::EcDsa
     }
 }

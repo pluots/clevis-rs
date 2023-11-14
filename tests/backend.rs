@@ -26,11 +26,12 @@ fn test_roundtrip() {
     } = client.create_secure_key::<10>().unwrap();
     let meta_str = meta.to_json();
 
+    dbg!(&meta);
     println!("{}", json_pretty(&meta_str));
 
     // --- recovery ---
 
-    let new_meta = KeyMeta::from_json(&meta_str).unwrap();
+    let new_meta = KeyMeta::from_json(&meta_str).unwrap_or_else(|e| panic!("{e}:\n    {meta_str}"));
     let newkey = client.recover_secure_key::<10>(&new_meta).unwrap();
 
     assert_eq!(encryption_key.as_bytes(), newkey.as_bytes());

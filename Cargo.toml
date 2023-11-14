@@ -18,9 +18,8 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4.4.7", features = ["derive"] }
 env_logger = "0.10.0"
-josekit = "0.8.4"
 log = "0.4.20"
-serde = "1.0.190"
+serde = { version = "1.0.190", features = ["derive"] }
 sha2 = "0.10.8"
 serde_json = { version = "1.0.108", features = ["preserve_order"] }
 ureq = { version = "2.8.0", features = ["json"] }
@@ -35,6 +34,8 @@ elliptic-curve = { version = "0.13.6", features = ["jwk"] }
 primeorder = "0.13.3"
 aead = "0.5.2"
 concat-kdf = "0.1.0"
+ecdsa = "0.16.8"
+zeroize = { version = "1.6.0", features = ["serde"] }
 
 # vsss-rs = "2.7.1"
 

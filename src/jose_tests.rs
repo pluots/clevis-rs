@@ -57,12 +57,12 @@ fn test_verify() {
 fn test_thumbprint() {
     let jwk: Jwk = serde_json::from_str(SAMPLE_JWK_DERIVE).unwrap();
     assert_eq!(
-        make_thumbprint(&jwk, ThpHashAlg::Sha256).unwrap(),
+        jwk.make_thumbprint(ThpHashAlg::Sha256).as_ref(),
         SAMPLE_JWK_DERIVE_THP
     );
     let jwk: Jwk = serde_json::from_str(SAMPLE_JWK_VERIFY).unwrap();
     assert_eq!(
-        make_thumbprint(&jwk, ThpHashAlg::Sha256).unwrap(),
+        jwk.make_thumbprint(ThpHashAlg::Sha256).as_ref(),
         SAMPLE_JWK_VERIFY_THP
     );
 }

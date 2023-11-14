@@ -1,14 +1,22 @@
 use crate::key_exchange::{create_enc_key, recover_enc_key};
 use crate::util::{b64_to_bytes, b64_to_str};
 use crate::{EncryptionKey, Error, Result};
-use base64ct::{Base64UrlUnpadded, Encoding};
-use josekit::jwk::Jwk;
-use josekit::jws::{self, JwsVerifier};
+use base64ct::{Base64Url, Base64UrlUnpadded, Encoding};
+use elliptic_curve::sec1::{EncodedPoint, FromEncodedPoint, ModulusSize, ToEncodedPoint};
+use elliptic_curve::zeroize::Zeroizing;
+use elliptic_curve::{
+    AffinePoint, Curve, CurveArithmetic, FieldBytes, FieldBytesSize, JwkParameters, PublicKey,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Digest;
 use sha2::Sha256;
 use std::fmt;
+
+#[cfg(test)]
+use elliptic_curve::SecretKey;
+#[cfg(test)]
+use zeroize::Zeroize;
 
 /// Representation of a tang advertisment response which is a JWS of available keys.
 ///
@@ -28,18 +36,14 @@ impl Advertisment {
     ///
     /// If a thumbprint is specified, only use a verify key with that thumbprint. Otherwise,
     /// use any verify key.
+
     fn validate(&self, jwks: &JwkSet, thumbprint: Option<&str>) -> Result<Box<str>> {
         let (verify_jwk, thp) = if let Some(thp) = thumbprint {
             (jwks.get_key_by_id(thp)?, Box::from(thp))
         } else {
             let verify_jwk = jwks.get_key_by_op("verify")?;
-            (
-                verify_jwk,
-                make_thumbprint(verify_jwk, ThpHashAlg::Sha256)?.into(),
-            )
+            (verify_jwk, verify_jwk.make_thumbprint(ThpHashAlg::Sha256))
         };
-        // jwks.get_key_by_id()
-        let verifier = get_verifier(verify_jwk)?;
 
         // B64 is 4/3 data length, plus a `.`
         let payload_b64_len = Base64UrlUnpadded::encoded_len(self.payload.as_bytes());
@@ -58,7 +62,7 @@ impl Advertisment {
         )
         .unwrap();
 
-        verifier.verify(&to_verify, &self.signature)?;
+        verify_jwk.verify(&to_verify, &self.signature)?;
         Ok(thp)
     }
 
@@ -90,6 +94,246 @@ impl fmt::Debug for Advertisment {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Jwk {
+    #[serde(flatten)]
+    pub inner: JwkInner,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_ops: Option<Vec<Box<str>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alg: Option<Box<str>>,
+    // #[serde(flatten)]
+    // pub extra: HashMap<Box<str>, serde_json::Value>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "kty", rename_all = "UPPERCASE")]
+pub enum JwkInner {
+    Ec(EcJwk),
+    Rsa(RsaJwk),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EcJwk {
+    pub crv: Box<str>,
+    pub x: Box<str>,
+    /// Only required for the `P-` curves
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub y: Option<Box<str>>,
+    /// Private key part
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub d: Option<Zeroizing<Box<str>>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RsaJwk {
+    pub e: Box<str>,
+    pub n: Box<str>,
+}
+
+impl Jwk {
+    /// Jwk thumbprint as described in RFC7638 section 3.1.
+    fn make_thumbprint(&self, alg: ThpHashAlg) -> Box<str> {
+        match &self.inner {
+            JwkInner::Ec(ec_key) => ec_key.make_thumbprint(alg),
+            JwkInner::Rsa(rsa_key) => rsa_key.make_thumbprint(alg),
+        }
+    }
+
+    /// Return the EC JWK if that is the correct type, an algorithm error otherwise
+    pub(crate) fn as_ec(&self) -> Result<&EcJwk> {
+        match &self.inner {
+            JwkInner::Ec(key) => Ok(key),
+            JwkInner::Rsa(_) => Err(Error::Algorithm("RSA".into())),
+        }
+    }
+
+    pub(crate) fn verify(&self, message: &[u8], signature: &[u8]) -> Result<()> {
+        match &self.inner {
+            JwkInner::Ec(v) => v.verify(message, signature),
+            JwkInner::Rsa(_) => Err(Error::Algorithm("RSA".into())),
+        }
+    }
+}
+
+impl fmt::Display for Jwk {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut to_fmt = self.clone();
+
+        // Hide the secret key
+        if let JwkInner::Ec(EcJwk {
+            d: Some(ref mut val),
+            ..
+        }) = to_fmt.inner
+        {
+            *val = Zeroizing::new("****".into());
+        };
+
+        f.write_str(&serde_json::to_string(&to_fmt).unwrap())
+    }
+}
+
+fn encode_base64url_fe<C: Curve>(field: &FieldBytes<C>) -> Box<str> {
+    Base64Url::encode_string(field).into()
+}
+
+fn decode_base64url_fe<C: Curve>(s: &str) -> Result<FieldBytes<C>> {
+    let mut result = FieldBytes::<C>::default();
+    Base64Url::decode(s, &mut result).map_err(|_| Error::EllipitcCurve)?;
+    Ok(result)
+}
+
+impl EcJwk {
+    /// Convert to a usable `PublicKey`
+    pub(crate) fn to_pub<C>(&self) -> Result<PublicKey<C>>
+    where
+        C: CurveArithmetic + JwkParameters,
+        AffinePoint<C>: FromEncodedPoint<C> + ToEncodedPoint<C>,
+        FieldBytesSize<C>: ModulusSize,
+    {
+        assert_eq!(self.crv.as_ref(), C::CRV);
+
+        let Some(ref y) = self.y else {
+            return Err(Error::InvalidPublicKey(Jwk::from(self.clone()).into()));
+        };
+
+        let x = decode_base64url_fe::<C>(&self.x)?;
+        let y = decode_base64url_fe::<C>(y)?;
+        let affine = EncodedPoint::<C>::from_affine_coordinates(&x, &y, false);
+
+        PublicKey::from_sec1_bytes(affine.as_bytes()).map_err(Into::into)
+    }
+
+    pub(crate) fn from_pub<C>(key: &PublicKey<C>) -> Self
+    where
+        C: CurveArithmetic + JwkParameters,
+        AffinePoint<C>: ToEncodedPoint<C>,
+        FieldBytesSize<C>: ModulusSize,
+    {
+        let point = key.as_affine().to_encoded_point(false);
+        let x = encode_base64url_fe::<C>(point.x().expect("unexpected identity point"));
+        let y = encode_base64url_fe::<C>(point.y().expect("unexpected identity point"));
+        Self {
+            crv: C::CRV.into(),
+            x,
+            y: Some(y),
+            d: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn to_priv<C>(&self) -> Result<SecretKey<C>>
+    where
+        C: CurveArithmetic,
+    {
+        let Some(d) = &self.d else {
+            panic!("expected private key but got public")
+        };
+
+        let mut d_bytes = decode_base64url_fe::<C>(d.as_ref())?;
+        let result = SecretKey::<C>::from_slice(&d_bytes)?;
+        d_bytes.zeroize();
+
+        Ok(result)
+    }
+
+    pub(crate) fn get_curve(&self) -> Result<JwkCurve> {
+        match self.crv.as_ref() {
+            "P-256" => Ok(JwkCurve::P256),
+            "P-284" => Ok(JwkCurve::P384),
+            "P-521" => Ok(JwkCurve::P521),
+            other => Err(Error::Algorithm(other.into())),
+        }
+    }
+
+    pub(crate) fn verify(&self, message: &[u8], signature: &[u8]) -> Result<()> {
+        match self.get_curve()? {
+            JwkCurve::P256 => self.verify_p256(message, signature),
+            JwkCurve::P384 => self.verify_p384(message, signature),
+            JwkCurve::P521 => self.verify_p521(message, signature),
+        }
+    }
+
+    pub(crate) fn make_thumbprint(&self, alg: ThpHashAlg) -> Box<str> {
+        let to_enc = json! {{
+            "crv": &self.crv,
+            "kty": "EC",
+            "x": &self.x,
+            "y": &self.y
+        }};
+        alg.hash_data_to_string(to_enc.to_string().as_bytes())
+    }
+
+    // FIXME: switch these to use generics once p521 uses the `ecdsa` crate traits
+
+    fn verify_p256(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
+        use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+        let pubkey = self.to_pub::<p256::NistP256>()?;
+        let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
+        let signature = Signature::from_slice(sig)?;
+        verify_key
+            .verify(msg, &signature)
+            .map_err(|_| Error::FailedVerification)
+    }
+
+    fn verify_p384(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
+        use p384::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+        let pubkey = self.to_pub::<p384::NistP384>()?;
+        let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
+        let signature = Signature::from_slice(sig)?;
+        verify_key
+            .verify(msg, &signature)
+            .map_err(|_| Error::FailedVerification)
+    }
+
+    fn verify_p521(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
+        use p521::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+        let pubkey = self.to_pub::<p521::NistP521>()?;
+        let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
+        let signature = Signature::from_slice(sig)?;
+        verify_key
+            .verify(msg, &signature)
+            .map_err(|_| Error::FailedVerification)
+    }
+}
+
+impl From<EcJwk> for Jwk {
+    fn from(value: EcJwk) -> Self {
+        Jwk {
+            inner: JwkInner::Ec(value),
+            key_ops: None,
+            alg: None,
+            // extra: HashMap::new(),
+        }
+    }
+}
+
+impl TryFrom<Jwk> for EcJwk {
+    type Error = Error;
+
+    fn try_from(value: Jwk) -> std::result::Result<Self, Self::Error> {
+        match value.inner {
+            JwkInner::Ec(ec_key) => Ok(ec_key),
+            JwkInner::Rsa(_) => Err(Error::Algorithm("RSA".into())),
+        }
+    }
+}
+
+/// A verification algorithm
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum JwkCurve {
+    P256,
+    P384,
+    P521,
+}
+
+impl RsaJwk {
+    fn make_thumbprint(&self, alg: ThpHashAlg) -> Box<str> {
+        let to_enc = json! {{ "e": &self.e, "kty": "RSA", "n": &self.n }};
+        alg.hash_data_to_string(to_enc.to_string().as_bytes())
+    }
+}
+
 /// The response from a Tang server, containing a list of possible keys to use for derivation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JwkSet {
@@ -102,8 +346,8 @@ impl JwkSet {
         self.keys
             .iter()
             .find(|key| {
-                key.key_operations().map_or(false, |key_ops| {
-                    key_ops.iter().any(|op| op.eq_ignore_ascii_case(op_name))
+                key.key_ops.as_ref().map_or(false, |ops| {
+                    ops.iter().any(|op| op.eq_ignore_ascii_case(op_name))
                 })
             })
             .ok_or(Error::MissingKeyOp(op_name.into()))
@@ -111,12 +355,12 @@ impl JwkSet {
 
     pub(crate) fn get_key_by_id(&self, kid: &str) -> Result<&Jwk> {
         for key in &self.keys {
-            let thp_sha256 = make_thumbprint(key, ThpHashAlg::Sha256)?;
-            if thp_sha256 == kid {
+            let thp_sha256 = key.make_thumbprint(ThpHashAlg::Sha256);
+            if thp_sha256.as_ref() == kid {
                 return Ok(key);
             }
-            let thp_sha1 = make_thumbprint(key, ThpHashAlg::Sha1)?;
-            if thp_sha1 == kid {
+            let thp_sha1 = key.make_thumbprint(ThpHashAlg::Sha1);
+            if thp_sha1.as_ref() == kid {
                 return Ok(key);
             }
         }
@@ -129,8 +373,9 @@ impl JwkSet {
         signing_thumbprint: Box<str>,
     ) -> Result<GeneratedKey<N>> {
         let derive_jwk = self.get_key_by_op("deriveKey")?.clone();
+        let derive_jwk = derive_jwk.as_ec()?;
 
-        let (epk, encryption_key) = create_enc_key(&derive_jwk)?;
+        let (epk, encryption_key) = create_enc_key(derive_jwk)?;
         let clevis = ClevisParams {
             pin: "tang".into(),
             tang: TangParams {
@@ -142,8 +387,8 @@ impl JwkSet {
             alg: "ECDH-ES".into(),
             clevis,
             enc: None,
-            epk,
-            kid: make_thumbprint(&derive_jwk, ThpHashAlg::Sha256)?.into(),
+            epk: epk.into(),
+            kid: derive_jwk.make_thumbprint(ThpHashAlg::Sha256),
         };
 
         Ok(GeneratedKey {
@@ -156,102 +401,27 @@ impl JwkSet {
 
 /// The key types we support
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum KeyType {
-    Ec,
-    Rsa,
-}
-
-/// The key types we support
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum ThpHashAlg {
+pub enum ThpHashAlg {
     Sha1,
     Sha256,
 }
 
-/// Extract the key type of a jwk
-fn key_type(jwk: &Jwk) -> Result<KeyType> {
-    match jwk.key_type() {
-        "EC" => Ok(KeyType::Ec),
-        "RSA" => Ok(KeyType::Rsa),
-        _ => Err(Error::KeyType(jwk.key_type().into())),
-    }
-}
-
-/// Get a verifier from a JWK
-fn get_verifier(jwk: &Jwk) -> Result<Box<dyn JwsVerifier>> {
-    let kty = key_type(jwk)?;
-    if kty == KeyType::Ec {
-        jws::ES512
-            .verifier_from_jwk(jwk)
-            .or_else(|_| jws::ES256.verifier_from_jwk(jwk))
-            .or_else(|_| jws::ES256K.verifier_from_jwk(jwk))
-            .or_else(|_| jws::ES384.verifier_from_jwk(jwk))
-            .map(|v| Box::new(v) as Box<dyn JwsVerifier>)
-    } else if kty == KeyType::Rsa {
-        jws::RS256
-            .verifier_from_jwk(jwk)
-            .or_else(|_| jws::RS384.verifier_from_jwk(jwk))
-            .or_else(|_| jws::RS512.verifier_from_jwk(jwk))
-            .map(|v| Box::new(v) as Box<dyn JwsVerifier>)
-    } else {
-        unreachable!()
-    }
-    .map_err(Into::into)
-}
-
-/// Jwk thumbprint as described in RFC7638 section 3.1.
-fn make_thumbprint(jwk: &Jwk, alg: ThpHashAlg) -> Result<String> {
-    let kty = key_type(jwk)?;
-    let to_enc = if kty == KeyType::Ec {
-        let crv = get_jwk_param(jwk, "crv")?;
-        let crv = crv
-            .as_str()
-            .ok_or_else(|| Error::JsonKeyType(crv.to_string().into()))?;
-
-        // Only specific curves require `y`
-        let y_param = if ["P-256", "P-384", "P-521"].contains(&crv) {
-            Some(get_jwk_param(jwk, "y")?)
-        } else {
-            None
-        };
-
-        json! {{
-            "crv": get_jwk_param(jwk, "crv")?,
-            "kty": jwk.key_type(),
-            "x": get_jwk_param(jwk, "x")?,
-            "y": y_param
-        }}
-    } else if kty == KeyType::Rsa {
-        json! {{
-            "e": get_jwk_param(jwk, "e")?,
-            "kty": jwk.key_type(),
-            "n": get_jwk_param(jwk, "n")?,
-        }}
-    } else {
-        // symmetric keys need "k" and "kty"
-        unreachable!()
-    };
-
-    let to_hash = to_enc.to_string();
-
-    match alg {
-        ThpHashAlg::Sha1 => {
-            let mut hasher = sha1::Sha1::new();
-            hasher.update(to_hash.as_bytes());
-            Ok(Base64UrlUnpadded::encode_string(&hasher.finalize()))
+impl ThpHashAlg {
+    fn hash_data_to_string(self, data: &[u8]) -> Box<str> {
+        match self {
+            ThpHashAlg::Sha1 => {
+                let mut hasher = sha1::Sha1::new();
+                hasher.update(data);
+                Base64UrlUnpadded::encode_string(&hasher.finalize())
+            }
+            ThpHashAlg::Sha256 => {
+                let mut hasher = Sha256::new();
+                hasher.update(data);
+                Base64UrlUnpadded::encode_string(&hasher.finalize())
+            }
         }
-        ThpHashAlg::Sha256 => {
-            let mut hasher = Sha256::new();
-            hasher.update(to_hash.as_bytes());
-            Ok(Base64UrlUnpadded::encode_string(&hasher.finalize()))
-        }
+        .into_boxed_str()
     }
-}
-
-/// Get a parameter from the JWK
-fn get_jwk_param<'a>(jwk: &'a Jwk, key: &str) -> Result<&'a Value> {
-    jwk.parameter(key)
-        .ok_or_else(|| Error::JsonMissingKey(key.into()))
 }
 
 pub struct GeneratedKey<const KEYBYTES: usize> {
@@ -317,9 +487,10 @@ impl KeyMeta {
         &self,
         server_key_exchange: impl FnOnce(&str, &Jwk) -> Result<Jwk>,
     ) -> Result<EncryptionKey<N>> {
-        let c_pub_jwk = &self.epk;
+        let c_pub_jwk = &self.epk.as_ec()?;
         let kid = &self.kid;
-        let s_pub_jwk = self.clevis.tang.adv.get_key_by_id(kid)?;
+        let s_pub_jwk = self.clevis.tang.adv.get_key_by_id(kid)?.as_ec()?;
+
         recover_enc_key(c_pub_jwk, s_pub_jwk, |x_pub_jwk| {
             server_key_exchange(kid, x_pub_jwk)
         })
