@@ -1,4 +1,5 @@
-use std::{fmt, io, str::Utf8Error};
+use std::str::Utf8Error;
+use std::{fmt, io};
 
 use crate::jose::Jwk;
 
