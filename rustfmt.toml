@@ -1,0 +1,7 @@
+# Most of these are nightly only, but they are needed
+imports_granularity = "Module"
+newline_style = "Unix"
+group_imports = "StdExternalCrate"
+format_code_in_doc_comments = true
+format_macro_bodies = true
+format_macro_matchers = true
