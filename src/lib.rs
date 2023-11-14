@@ -52,6 +52,6 @@ mod tang_interface;
 mod util;
 
 pub use error::{Error, Result};
-pub use jose::{JwkSet, KeyMeta, ProvisionedData};
+pub use jose::{KeyMeta, ProvisionedData};
 pub use key_exchange::EncryptionKey;
 pub use tang_interface::TangClient;
