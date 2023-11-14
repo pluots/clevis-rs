@@ -441,9 +441,11 @@ pub struct ProvisionedData<const KEYBYTES: usize> {
     /// key for use with encryption. This data can be stored in JSON form.
     ///
     /// <div class="warning">
-    ///     ⚠️ WARNING:
-    ///     Anybody who has access to both this metadata and the Tang server can recover
-    ///     the encryption keys. Treat this data with respect!
+    ///
+    ///   ⚠️**WARNING:**
+    ///   Anybody who has access to both this metadata and the Tang server can recover
+    ///   the encryption keys. Treat this data with respect!
+    ///
     /// </div>
     pub meta: KeyMeta,
 }
@@ -451,10 +453,12 @@ pub struct ProvisionedData<const KEYBYTES: usize> {
 /// Data that must be stored to retrieve a key.
 ///
 /// <div class="warning">
-///     ⚠️ WARNING:
-///     Note that while this data does not contain the encryption key, it should still not
-///     be exposed. Any device that can read this metadata could potentially decrypt
-///     the ciphertext if it has access to the Tang server.
+///
+///   ⚠️ **WARNING:**
+///   Note that while this data does not contain the encryption key, it should still not
+///   be exposed. Any device that can read this metadata could potentially decrypt
+///   the ciphertext if it has access to the Tang server.
+///
 /// </div>
 #[derive(Debug, Deserialize, Serialize)]
 pub struct KeyMeta {
