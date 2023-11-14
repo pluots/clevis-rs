@@ -1,6 +1,8 @@
 //! A Rust implementation of the Tang portion of Clevis, specified in
 //! <https://github.com/latchset/clevis>.
 //!
+//! This is still under development, but works reasonibly well.
+//!
 //! ```
 //! # #[cfg(not(feature = "_backend"))] fn main() {}
 //! # #[cfg(feature = "_backend")]
@@ -15,7 +17,9 @@
 //! let client = TangClient::new("localhost:11697", None);
 //!
 //! // create a key suitible for encryption (i.e. has gone through a KDF)
-//! let out = client.create_secure_key::<KEY_BYTES>().expect("failed to generate key");
+//! let out = client
+//!     .create_secure_key::<KEY_BYTES>()
+//!     .expect("failed to generate key");
 //!
 //! // use this key to encrypt data
 //! let original_key = out.encryption_key;
@@ -29,7 +33,9 @@
 //! /* key recovery */
 //!
 //! let new_meta = KeyMeta::from_json(&meta_str).expect("invalid metadata");
-//! let new_key = client.recover_secure_key::<KEY_BYTES>(&new_meta).expect("failed to retrieve key");
+//! let new_key = client
+//!     .recover_secure_key::<KEY_BYTES>(&new_meta)
+//!     .expect("failed to retrieve key");
 //!
 //! assert_eq!(original_key, new_key);
 //! # }

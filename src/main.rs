@@ -1,10 +1,10 @@
 #![allow(unused)]
 
 use std::io::stdin;
-
-use clap::{Args, Parser, Subcommand};
 // use clevis::{DecryptConfig, EncryptConfig, EncryptSource};
 use std::io::{BufRead, Read};
+
+use clap::{Args, Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 struct Cli {

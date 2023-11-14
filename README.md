@@ -8,22 +8,7 @@ and Tang.
 
 This crate is a work in progress.
 
-## Tang
-
-The basic operations path is taken from the [Tang] specification. In short, the
-encrypting client must:
-
-1. Request a public key with `GET /adv`. This returns a JWK set as a JWS
-2. Verify the integrity of the received JWS using the included `verify` key
-
-The config can specify:
-
-- Tang URL
-- Thumbprint
-
-The URL specifies which server to query, while the thumbprint specifies a
-preferred key.
-
+See the documentation for further information: <https://docs.rs/clevis>.
 
 ## Licensing
 

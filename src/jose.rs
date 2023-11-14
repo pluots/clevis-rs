@@ -1,22 +1,22 @@
-use crate::key_exchange::{create_enc_key, recover_enc_key};
-use crate::util::{b64_to_bytes, b64_to_str};
-use crate::{EncryptionKey, Error, Result};
+use std::fmt;
+
 use base64ct::{Base64Url, Base64UrlUnpadded, Encoding};
 use elliptic_curve::sec1::{EncodedPoint, FromEncodedPoint, ModulusSize, ToEncodedPoint};
 use elliptic_curve::zeroize::Zeroizing;
+#[cfg(test)]
+use elliptic_curve::SecretKey;
 use elliptic_curve::{
     AffinePoint, Curve, CurveArithmetic, FieldBytes, FieldBytesSize, JwkParameters, PublicKey,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sha2::Digest;
-use sha2::Sha256;
-use std::fmt;
-
-#[cfg(test)]
-use elliptic_curve::SecretKey;
+use sha2::{Digest, Sha256};
 #[cfg(test)]
 use zeroize::Zeroize;
+
+use crate::key_exchange::{create_enc_key, recover_enc_key};
+use crate::util::{b64_to_bytes, b64_to_str};
+use crate::{EncryptionKey, Error, Result};
 
 /// Representation of a tang advertisment response which is a JWS of available keys.
 ///
@@ -267,7 +267,8 @@ impl EcJwk {
     // FIXME: switch these to use generics once p521 uses the `ecdsa` crate traits
 
     fn verify_p256(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
-        use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+        use p256::ecdsa::signature::Verifier;
+        use p256::ecdsa::{Signature, VerifyingKey};
         let pubkey = self.to_pub::<p256::NistP256>()?;
         let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
         let signature = Signature::from_slice(sig)?;
@@ -277,7 +278,8 @@ impl EcJwk {
     }
 
     fn verify_p384(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
-        use p384::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+        use p384::ecdsa::signature::Verifier;
+        use p384::ecdsa::{Signature, VerifyingKey};
         let pubkey = self.to_pub::<p384::NistP384>()?;
         let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
         let signature = Signature::from_slice(sig)?;
@@ -287,7 +289,8 @@ impl EcJwk {
     }
 
     fn verify_p521(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
-        use p521::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+        use p521::ecdsa::signature::Verifier;
+        use p521::ecdsa::{Signature, VerifyingKey};
         let pubkey = self.to_pub::<p521::NistP521>()?;
         let verify_key = VerifyingKey::from_affine(*pubkey.as_affine())?;
         let signature = Signature::from_slice(sig)?;

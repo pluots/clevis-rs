@@ -1,23 +1,17 @@
-use crate::jose::{EcJwk, Jwk, JwkCurve};
-use crate::{Error, Result};
-use elliptic_curve::ecdh;
 use elliptic_curve::ecdh::SharedSecret;
 use elliptic_curve::group::Curve as GroupCurve;
 use elliptic_curve::point::AffineCoordinates;
 use elliptic_curve::rand_core::OsRng;
-use elliptic_curve::sec1::FromEncodedPoint;
-use elliptic_curve::sec1::ModulusSize;
-use elliptic_curve::sec1::ToEncodedPoint;
+use elliptic_curve::sec1::{FromEncodedPoint, ModulusSize, ToEncodedPoint};
 use elliptic_curve::subtle::ConstantTimeEq;
 use elliptic_curve::zeroize::Zeroizing;
-use elliptic_curve::AffinePoint;
-use elliptic_curve::Curve;
-use elliptic_curve::CurveArithmetic;
-use elliptic_curve::FieldBytesSize;
-use elliptic_curve::JwkParameters;
-use elliptic_curve::ProjectivePoint;
-use elliptic_curve::PublicKey;
-use elliptic_curve::SecretKey;
+use elliptic_curve::{
+    ecdh, AffinePoint, Curve, CurveArithmetic, FieldBytesSize, JwkParameters, ProjectivePoint,
+    PublicKey, SecretKey,
+};
+
+use crate::jose::{EcJwk, Jwk, JwkCurve};
+use crate::{Error, Result};
 
 /// A zeroizing wrapper around a generated encryption key
 #[derive(Clone, Debug)]

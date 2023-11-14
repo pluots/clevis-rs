@@ -13,10 +13,10 @@
 //!
 //! We provide each mode with a separate function and test against the jose output
 
-use crate::jose::Jwk;
+use serde_json::Value;
 
 use super::*;
-use serde_json::Value;
+use crate::jose::Jwk;
 
 // PUB and PRIV are random keys, not related
 // It seems like jose doesn't do what we want unless we slap an `alg: ECMR` on everything
