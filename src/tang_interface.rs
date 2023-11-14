@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::jose::{Advertisment, GeneratedKey, Jwk, JwkSet, KeyMeta};
+use crate::jose::{Advertisment, Jwk, JwkSet, KeyMeta, ProvisionedData};
 use crate::{EncryptionKey, Result};
 
 // const DEFAULT_URL: &str = "http://tang.local";
@@ -28,8 +28,8 @@ impl TangClient {
         }
     }
 
-    /// Locate derive keys from the server and create an encryption key with specified length.
-    pub fn create_secure_key<const KEYBYTES: usize>(&self) -> Result<GeneratedKey<KEYBYTES>> {
+    /// Locate derive keys from the server and provision an encryption key with specified lengh.
+    pub fn create_secure_key<const KEYBYTES: usize>(&self) -> Result<ProvisionedData<KEYBYTES>> {
         let (keys, signing_thp) = self.fetch_keys(None)?;
         keys.make_tang_enc_key(&self.url, signing_thp)
     }
@@ -38,12 +38,12 @@ impl TangClient {
     pub fn create_secure_key_trusted_key<const KEYBYTES: usize>(
         &self,
         thumbprint: &str,
-    ) -> Result<GeneratedKey<KEYBYTES>> {
+    ) -> Result<ProvisionedData<KEYBYTES>> {
         let (keys, signing_thp) = self.fetch_keys(Some(thumbprint))?;
         keys.make_tang_enc_key(&self.url, signing_thp)
     }
 
-    /// Recover a secure key using metadata that was stored
+    /// Recover a secure key using metadata that was stored.
     pub fn recover_secure_key<const KEYBYTES: usize>(
         &self,
         meta: &KeyMeta,

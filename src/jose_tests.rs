@@ -71,7 +71,7 @@ fn test_thumbprint() {
 fn test_exchange_key() {
     let adv: Advertisment = serde_json::from_str(SAMPLE_JWS).unwrap();
     let (keys, thp) = adv.validate_into_keys(None).unwrap();
-    let GeneratedKey {
+    let ProvisionedData {
         encryption_key: _,
         signing_thumbprint,
         meta,

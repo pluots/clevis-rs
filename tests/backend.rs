@@ -2,7 +2,7 @@
 
 use std::assert_eq;
 
-use clevis::{GeneratedKey, KeyMeta, TangClient};
+use clevis::{KeyMeta, ProvisionedData, TangClient};
 
 const TEST_URL: Option<&str> = option_env!("TEST_TANG_URL");
 
@@ -19,7 +19,7 @@ fn test_roundtrip() {
     let client = make_client();
 
     // --- provisioning ---
-    let GeneratedKey {
+    let ProvisionedData {
         encryption_key,
         signing_thumbprint: _,
         meta,

@@ -374,7 +374,7 @@ impl JwkSet {
         &self,
         url: &str,
         signing_thumbprint: Box<str>,
-    ) -> Result<GeneratedKey<N>> {
+    ) -> Result<ProvisionedData<N>> {
         let derive_jwk = self.get_key_by_op("deriveKey")?.clone();
         let derive_jwk = derive_jwk.as_ec()?;
 
@@ -394,7 +394,7 @@ impl JwkSet {
             kid: derive_jwk.make_thumbprint(ThpHashAlg::Sha256),
         };
 
-        Ok(GeneratedKey {
+        Ok(ProvisionedData {
             encryption_key,
             signing_thumbprint,
             meta,
@@ -427,7 +427,8 @@ impl ThpHashAlg {
     }
 }
 
-pub struct GeneratedKey<const KEYBYTES: usize> {
+/// Data that is produced as a result of the provisioning (key generation) step.
+pub struct ProvisionedData<const KEYBYTES: usize> {
     /// Use this key to encrypt data
     pub encryption_key: EncryptionKey<KEYBYTES>,
     /// The thumbprint used for signing. Future keys can be requested using this thumbprint.
@@ -435,18 +436,25 @@ pub struct GeneratedKey<const KEYBYTES: usize> {
 
     /// Metadata required to regenerate an encryption key.
     ///
-    /// Both this metadata and a connection to the Tang server are needed to regenerate the
+    /// Both this metadata and a connection to the Tang server are needed to recover the
     /// key for use with encryption. This data can be stored in JSON form.
     ///
     /// <div class="warning">
-    /// Note that while this data does not contain the encryption key, it should still not
-    /// be exposed. Any device that can read this metadata could potentially decrypt
-    /// the ciphertext if it has access to the Tang server.
+    ///     ⚠️ WARNING:
+    ///     Anybody who has access to both this metadata and the Tang server can recover
+    ///     the encryption keys. Treat this data with respect!
     /// </div>
     pub meta: KeyMeta,
 }
 
-/// Store this to retrieve the key
+/// Data that must be stored to retrieve a key.
+///
+/// <div class="warning">
+///     ⚠️ WARNING:
+///     Note that while this data does not contain the encryption key, it should still not
+///     be exposed. Any device that can read this metadata could potentially decrypt
+///     the ciphertext if it has access to the Tang server.
+/// </div>
 #[derive(Debug, Deserialize, Serialize)]
 pub struct KeyMeta {
     /// Key exchange algorithm. Typically Elliptic Curve Diffie-Hellman Ephemeral Static

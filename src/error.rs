@@ -3,8 +3,10 @@ use std::{fmt, io};
 
 use crate::jose::Jwk;
 
+/// An alias for `Result` with this crate's [`Error`] type
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
+/// Error types that this crate may produce
 #[derive(Debug)]
 pub enum Error {
     Server(Box<ureq::Error>),
@@ -16,7 +18,6 @@ pub enum Error {
     Utf8(Utf8Error),
     Base64(base64ct::Error),
     Json(serde_json::Error),
-    // Jose(josekit::JoseError),
     KeyType(Box<str>),
     VerifyKey,
     InvalidPublicKey(Box<Jwk>),
