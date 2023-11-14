@@ -6,7 +6,10 @@ use crate::{EncryptionKey, Result};
 // const DEFAULT_URL: &str = "http://tang.local";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// A tang server connection specification
+/// A tang server connection specification.
+///
+/// This does not hold an active connection, only connection parameters.
+#[must_use]
 #[derive(Clone, Debug)]
 pub struct TangClient {
     url: String,
@@ -15,7 +18,6 @@ pub struct TangClient {
 
 impl TangClient {
     /// Create a new client. If timeout is not specified, it will default to 120s.
-    #[must_use]
     pub fn new(url: &str, timeout: Option<Duration>) -> Self {
         let url = if url.starts_with("http") {
             url.to_owned()
@@ -26,6 +28,11 @@ impl TangClient {
             url,
             timeout: timeout.unwrap_or(DEFAULT_TIMEOUT),
         }
+    }
+
+    /// This client's connection URL
+    pub fn url(&self) -> &str {
+        &self.url
     }
 
     /// Locate derive keys from the server and provision an encryption key with specified lengh.

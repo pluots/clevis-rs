@@ -4,20 +4,20 @@
 //! This is still under development, but works reasonibly well.
 //!
 //! ```
-//! # #[cfg(not(feature = "_backend"))] fn main() {}
-//! # #[cfg(feature = "_backend")]
 //! # fn main() {
+//! # #[cfg(feature = "_backend")] test();
+//! # }
+//! #
+//! # fn test() {
 //! use clevis::{KeyMeta, TangClient};
 //!
-//! /// 32-byte (256 bit) key
+//! /// 32-byte (256 bit) key, such as for AES256-GCM
 //! const KEY_BYTES: usize = 32;
 //!
 //! /* key provisioning */
 //!
-//! let client = TangClient::new("localhost:11697", None);
-//!
 //! // create a key suitible for encryption (i.e. has gone through a KDF)
-//! let out = client
+//! let out = TangClient::new("localhost:11697", None)
 //!     .create_secure_key::<KEY_BYTES>()
 //!     .expect("failed to generate key");
 //!
@@ -33,7 +33,8 @@
 //! /* key recovery */
 //!
 //! let new_meta = KeyMeta::from_json(&meta_str).expect("invalid metadata");
-//! let new_key = client
+//! let new_key = new_meta
+//!     .client(None)
 //!     .recover_secure_key::<KEY_BYTES>(&new_meta)
 //!     .expect("failed to retrieve key");
 //!
@@ -44,6 +45,7 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::missing_errors_doc)]
+#![allow(clippy::must_use_candidate)]
 
 mod error;
 mod jose;

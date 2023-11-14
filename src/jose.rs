@@ -1,4 +1,5 @@
 use std::fmt;
+use std::time::Duration;
 
 use base64ct::{Base64Url, Base64UrlUnpadded, Encoding};
 use elliptic_curve::sec1::{EncodedPoint, FromEncodedPoint, ModulusSize, ToEncodedPoint};
@@ -16,7 +17,7 @@ use zeroize::Zeroize;
 
 use crate::key_exchange::{create_enc_key, recover_enc_key};
 use crate::util::{b64_to_bytes, b64_to_str};
-use crate::{EncryptionKey, Error, Result};
+use crate::{EncryptionKey, Error, Result, TangClient};
 
 /// Representation of a tang advertisment response which is a JWS of available keys.
 ///
@@ -486,7 +487,6 @@ struct TangParams {
 
 impl KeyMeta {
     /// Serialize this data to a JSON string
-    #[must_use]
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("serialization failure")
     }
@@ -494,6 +494,16 @@ impl KeyMeta {
     /// Deserialize this data from a JSON string
     pub fn from_json(val: &str) -> Result<Self> {
         serde_json::from_str(val).map_err(Into::into)
+    }
+
+    /// Create a [`TangClient`] from the URL used to generate this key
+    pub fn client(&self, timeout: Option<Duration>) -> TangClient {
+        TangClient::new(&self.clevis.tang.url, timeout)
+    }
+
+    /// The URL that was used to generate this key
+    pub fn url(&self) -> &str {
+        &self.clevis.tang.url
     }
 
     pub(crate) fn recover_key<const N: usize>(
