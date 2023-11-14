@@ -435,9 +435,11 @@ pub struct GeneratedKey<const KEYBYTES: usize> {
     /// Both this metadata and a connection to the Tang server are needed to regenerate the
     /// key for use with encryption. This data can be stored in JSON form.
     ///
+    /// <div class="warning">
     /// Note that while this data does not contain the encryption key, it should still not
     /// be exposed. Any device that can read this metadata could potentially decrypt
     /// the ciphertext if it has access to the Tang server.
+    /// </div>
     pub meta: KeyMeta,
 }
 

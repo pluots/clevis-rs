@@ -8,6 +8,7 @@ use elliptic_curve::rand_core::OsRng;
 use elliptic_curve::sec1::FromEncodedPoint;
 use elliptic_curve::sec1::ModulusSize;
 use elliptic_curve::sec1::ToEncodedPoint;
+use elliptic_curve::subtle::ConstantTimeEq;
 use elliptic_curve::zeroize::Zeroizing;
 use elliptic_curve::AffinePoint;
 use elliptic_curve::Curve;
@@ -19,14 +20,26 @@ use elliptic_curve::PublicKey;
 use elliptic_curve::SecretKey;
 
 /// A zeroizing wrapper around a generated encryption key
-#[derive(Clone, Debug, PartialEq)]
-pub struct EncryptionKey<const N: usize>(Zeroizing<[u8; N]>);
+#[derive(Clone, Debug)]
+pub struct EncryptionKey<const KEYBYTES: usize>(Zeroizing<[u8; KEYBYTES]>);
 
-impl<const N: usize> EncryptionKey<N> {
-    /// Return the secret key
+impl<const KEYBYTES: usize> EncryptionKey<KEYBYTES> {
+    /// Return a reference to the secret key. Treat this data with respect!
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8; N] {
+    pub fn as_bytes(&self) -> &[u8; KEYBYTES] {
         &self.0
+    }
+}
+
+impl<const KEYBYTES: usize> ConstantTimeEq for EncryptionKey<KEYBYTES> {
+    fn ct_eq(&self, other: &Self) -> elliptic_curve::subtle::Choice {
+        self.0.ct_eq(other.0.as_ref())
+    }
+}
+
+impl<const KEYBYTES: usize> PartialEq for EncryptionKey<KEYBYTES> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
     }
 }
 
