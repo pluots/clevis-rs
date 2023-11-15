@@ -496,6 +496,12 @@ impl KeyMeta {
         serde_json::from_str(val).map_err(Into::into)
     }
 
+    /// Deserialize this data from a JSON blob (this does the same as [`Self::from_json`] but does
+    /// not require a UTF-8 `&str`).
+    pub fn from_json_bytes(val: &[u8]) -> Result<Self> {
+        serde_json::from_slice(val).map_err(Into::into)
+    }
+
     /// Create a [`TangClient`] from the URL used to generate this key
     pub fn client(&self, timeout: Option<Duration>) -> TangClient {
         TangClient::new(&self.clevis.tang.url, timeout)

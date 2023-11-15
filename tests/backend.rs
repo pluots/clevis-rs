@@ -35,4 +35,7 @@ fn test_roundtrip() {
     let newkey = client.recover_secure_key::<10>(&new_meta).unwrap();
 
     assert_eq!(encryption_key.as_bytes(), newkey.as_bytes());
+
+    // sanity check the bytes implementation
+    let _ = KeyMeta::from_json_bytes(meta_str.as_bytes()).unwrap();
 }
