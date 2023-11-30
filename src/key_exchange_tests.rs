@@ -102,12 +102,16 @@ fn test_ecmr_add() {
     assert_json_eq(&out.to_jwk_string(), ADDITION);
 }
 
+// FIXME:ecmr_sub: this is how ECMR subtraction is supposed to work according to the docs.
+// However, I must be missing something because our results don't match.
 // #[test]
 // fn test_ecmr_sub() {
 //     let out = ecmr_sub(&pub1_jwk(), &pub2_jwk()).unwrap();
 //     assert_json_eq(&out.to_jwk_string(), SUBTRACTION);
 // }
 
+// FIXME:ecmr_sub: nothing to fix here, but note that this round trip test does
+// indeed work, even though the `jose jwk` result above does not match.
 #[test]
 fn test_ecmr_add_sub() {
     let pub1 = pub1_jwk();

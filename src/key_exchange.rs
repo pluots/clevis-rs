@@ -53,6 +53,7 @@ pub fn create_enc_key<const N: usize>(s_pub_jwk: &EcJwk) -> Result<(EcJwk, Encry
     }
 }
 
+/// Recover an encryption key when provided a function to do the remote key exchange.
 pub fn recover_enc_key<const N: usize>(
     c_pub_jwk: &EcJwk,
     s_pub_jwk: &EcJwk,
@@ -187,8 +188,9 @@ where
         .map_err(|_| Error::IdentityPointCreated)
 }
 
-// FIXME: subtraction doesn't match up with `jose` for some reason, but appears otherwise correct.
-// My guess is that it isn't actually doing subtraction, but I am not sure what it is doing instead...
+// FIXME:ecmr_sub subtraction doesn't match up with the `jose` CLI for some reason, but appears
+// otherwise correct. My guess is that it isn't actually doing subtraction, but I am not sure what
+// it is doing instead... See the test file for more comments.
 /// Point subtraction, per ECMR in <https://www.mankier.com/1/jose-jwk-exc>
 pub fn ecmr_sub<C>(local: &PublicKey<C>, remote: &PublicKey<C>) -> Result<PublicKey<C>>
 where
@@ -200,6 +202,7 @@ where
         .map_err(|_| Error::IdentityPointCreated)
 }
 
+/// Turn a secret key into a usable encryption key using the concat KDF.
 #[allow(clippy::needless_pass_by_value)]
 fn secret_to_key<C: Curve, const KEYBYTES: usize>(
     secret: SharedSecret<C>,
@@ -211,42 +214,6 @@ fn secret_to_key<C: Curve, const KEYBYTES: usize>(
         .unwrap();
     enc_key
 }
-
-// #[allow(unused)]
-// fn jwk_to_priv<C>(jwk: &Jwk) -> Result<SecretKey<C>>
-// where
-//     C: JwkParameters + ValidatePublicKey,
-//     FieldBytesSize<C>: ModulusSize,
-// {
-//     let errfn = || Error::InvalidPublicKey(jwk.clone());
-//     let json = serde_json::json! {{
-//         "crv": jwk.parameter("crv").ok_or_else(errfn)?,
-//         "kty": jwk.parameter("kty").ok_or_else(errfn)?,
-//         "d": jwk.parameter("d").ok_or_else(errfn)?,
-//         "x": jwk.parameter("x").ok_or_else(errfn)?,
-//         "y": jwk.parameter("y").ok_or_else(errfn)?,
-//     }};
-//     SecretKey::from_jwk_str(&json.to_string()).map_err(|_| Error::InvalidPublicKey(jwk.clone()))
-// }
-
-// fn jwk_from_pub<C>(key: &PublicKey<C>) -> Jwk
-// where
-//     C: CurveArithmetic + JwkParameters,
-//     AffinePoint<C>: FromEncodedPoint<C> + ToEncodedPoint<C>,
-//     FieldBytesSize<C>: ModulusSize,
-// {
-//     serde_json::from_str(key.to_jwk_string().as_ref()).expect("dependency generated an invalid JWK")
-// }
-
-// #[allow(unused)]
-// fn jwk_from_priv<C>(key: &SecretKey<C>) -> Jwk
-// where
-//     C: CurveArithmetic + JwkParameters,
-//     AffinePoint<C>: FromEncodedPoint<C> + ToEncodedPoint<C>,
-//     FieldBytesSize<C>: ModulusSize,
-// {
-//     serde_json::from_str(key.to_jwk_string().as_ref()).expect("dependency generated an invalid JWK")
-// }
 
 #[cfg(test)]
 #[path = "key_exchange_tests.rs"]

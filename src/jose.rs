@@ -41,7 +41,6 @@ impl Advertisment {
     ///
     /// If a thumbprint is specified, only use a verify key with that thumbprint. Otherwise,
     /// use any verify key.
-
     fn validate(&self, jwks: &JwkSet, thumbprint: Option<&str>) -> Result<Box<str>> {
         let (verify_jwk, thp) = if let Some(thp) = thumbprint {
             (jwks.get_key_by_id(thp)?, Box::from(thp))
@@ -71,7 +70,7 @@ impl Advertisment {
         Ok(thp)
     }
 
-    /// Validate the advertisment and extract its keys
+    /// Validate the advertisment and extract its keys. Returns an error if validation fails.
     pub fn validate_into_keys(self, thumbprint: Option<&str>) -> Result<(JwkSet, Box<str>)> {
         let jwks: JwkSet = serde_json::from_str(&self.payload)?;
         let thp = self.validate(&jwks, thumbprint)?;
@@ -99,6 +98,7 @@ impl fmt::Debug for Advertisment {
     }
 }
 
+/// Our representation of a JSON-serialized JWK
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Jwk {
     #[serde(flatten)]
@@ -107,10 +107,13 @@ pub struct Jwk {
     pub key_ops: Option<Vec<Box<str>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alg: Option<Box<str>>,
+    // FIXME:serde: we don't retain extra fields because our standard fields get duplicated.
+    // See <https://github.com/serde-rs/serde/issues/2200>
     // #[serde(flatten)]
     // pub extra: HashMap<Box<str>, serde_json::Value>,
 }
 
+/// A JWK type
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kty", rename_all = "UPPERCASE")]
 pub enum JwkInner {
@@ -118,18 +121,22 @@ pub enum JwkInner {
     Rsa(RsaJwk),
 }
 
+/// JWK representation of an elliptic curve key. Can be private or public.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EcJwk {
+    /// Curve type
     pub crv: Box<str>,
+    /// Public key `x` coordinate.
     pub x: Box<str>,
-    /// Only required for the `P-` curves
+    /// Public key `y` coordinate. Only required for the `P-` curves
     #[serde(skip_serializing_if = "Option::is_none")]
     pub y: Option<Box<str>>,
-    /// Private key part
+    /// Private key scalar
     #[serde(skip_serializing_if = "Option::is_none")]
     pub d: Option<Zeroizing<Box<str>>>,
 }
 
+/// RSA key, which we do not yet support
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RsaJwk {
     pub e: Box<str>,
@@ -189,7 +196,7 @@ fn decode_base64url_fe<C: Curve>(s: &str) -> Result<FieldBytes<C>> {
 }
 
 impl EcJwk {
-    /// Convert to a usable `PublicKey`
+    /// Convert to a usable `PublicKey` from this JWK
     pub(crate) fn to_pub<C>(&self) -> Result<PublicKey<C>>
     where
         C: CurveArithmetic + JwkParameters,
@@ -209,6 +216,7 @@ impl EcJwk {
         PublicKey::from_sec1_bytes(affine.as_bytes()).map_err(Into::into)
     }
 
+    /// Create a JWK from an EC public key
     pub(crate) fn from_pub<C>(key: &PublicKey<C>) -> Self
     where
         C: CurveArithmetic + JwkParameters,
@@ -226,6 +234,7 @@ impl EcJwk {
         }
     }
 
+    /// Create a valid private key from this JWK
     #[cfg(test)]
     pub(crate) fn to_priv<C>(&self) -> Result<SecretKey<C>>
     where
@@ -242,6 +251,7 @@ impl EcJwk {
         Ok(result)
     }
 
+    /// The curve name
     pub(crate) fn get_curve(&self) -> Result<JwkCurve> {
         match self.crv.as_ref() {
             "P-256" => Ok(JwkCurve::P256),
@@ -251,6 +261,7 @@ impl EcJwk {
         }
     }
 
+    /// Verify a message for a signature
     pub(crate) fn verify(&self, message: &[u8], signature: &[u8]) -> Result<()> {
         match self.get_curve()? {
             JwkCurve::P256 => self.verify_inner::<p256::NistP256>(message, signature),
@@ -259,6 +270,7 @@ impl EcJwk {
         }
     }
 
+    /// Create a thumbprint of this JWK as specified in the RFC
     pub(crate) fn make_thumbprint(&self, alg: ThpHashAlg) -> Box<str> {
         let to_enc = json! {{
             "crv": &self.crv,
@@ -269,6 +281,7 @@ impl EcJwk {
         alg.hash_data_to_string(to_enc.to_string().as_bytes())
     }
 
+    /// Curve-eneric implementation of the verification algorithm
     fn verify_inner<C>(&self, msg: &[u8], sig: &[u8]) -> Result<()>
     where
         C: CurveArithmetic + PrimeCurve + JwkParameters,
@@ -285,7 +298,8 @@ impl EcJwk {
             .map_err(|_| Error::FailedVerification)
     }
 
-    // FIXME: switch these to use generics once p521 uses the `ecdsa` crate traits
+    /// Verification algorithm specifically for p521
+    // FIXME:p521: switch these to use generics once p521 uses the `ecdsa` crate traits
     fn verify_p521(&self, msg: &[u8], sig: &[u8]) -> Result<()> {
         use p521::ecdsa::{Signature, VerifyingKey};
         let pubkey = self.to_pub::<p521::NistP521>()?;
@@ -319,7 +333,7 @@ impl TryFrom<Jwk> for EcJwk {
     }
 }
 
-/// A verification algorithm
+/// An EC algorithm
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum JwkCurve {
     P256,
@@ -328,6 +342,7 @@ pub(crate) enum JwkCurve {
 }
 
 impl RsaJwk {
+    /// Create a thumbprint as specified in the RFC
     fn make_thumbprint(&self, alg: ThpHashAlg) -> Box<str> {
         let to_enc = json! {{ "e": &self.e, "kty": "RSA", "n": &self.n }};
         alg.hash_data_to_string(to_enc.to_string().as_bytes())
@@ -353,6 +368,7 @@ impl JwkSet {
             .ok_or(Error::MissingKeyOp(op_name.into()))
     }
 
+    /// Locate a key with a given ID (thumbprint) and return it if it exists
     pub(crate) fn get_key_by_id(&self, kid: &str) -> Result<&Jwk> {
         for key in &self.keys {
             let thp_sha256 = key.make_thumbprint(ThpHashAlg::Sha256);
@@ -367,6 +383,7 @@ impl JwkSet {
         Err(Error::MissingPublicKey)
     }
 
+    /// Create a tang encryption key
     pub(crate) fn make_tang_enc_key<const N: usize>(
         &self,
         url: &str,
@@ -399,7 +416,7 @@ impl JwkSet {
     }
 }
 
-/// The key types we support
+/// The hash algorithms we support for thumbprints
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ThpHashAlg {
     Sha1,
@@ -407,6 +424,7 @@ pub enum ThpHashAlg {
 }
 
 impl ThpHashAlg {
+    /// Create a thumprint of this data
     fn hash_data_to_string(self, data: &[u8]) -> Box<str> {
         match self {
             ThpHashAlg::Sha1 => {
@@ -428,6 +446,7 @@ impl ThpHashAlg {
 pub struct ProvisionedData<const KEYBYTES: usize> {
     /// Use this key to encrypt data
     pub encryption_key: EncryptionKey<KEYBYTES>,
+
     /// The thumbprint used for signing. Future keys can be requested using this thumbprint.
     pub signing_thumbprint: Box<str>,
 
@@ -470,6 +489,7 @@ pub struct KeyMeta {
     kid: Box<str>,
 }
 
+/// Parameters in the `"clevis"` key
 #[derive(Debug, Deserialize, Serialize)]
 struct ClevisParams {
     /// This is always `tang` I think...
@@ -477,6 +497,7 @@ struct ClevisParams {
     tang: TangParams,
 }
 
+/// Parameters in the `"tang"` key
 #[derive(Debug, Deserialize, Serialize)]
 struct TangParams {
     /// Keys from the initial tang response
@@ -512,6 +533,7 @@ impl KeyMeta {
         &self.clevis.tang.url
     }
 
+    /// Reciver a key of length N
     pub(crate) fn recover_key<const N: usize>(
         &self,
         server_key_exchange: impl FnOnce(&str, &Jwk) -> Result<Jwk>,

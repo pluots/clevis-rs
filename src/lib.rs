@@ -1,7 +1,9 @@
 //! A Rust implementation of the Tang portion of Clevis, specified in
 //! <https://github.com/latchset/clevis>.
 //!
-//! This is still under development, but works reasonibly well.
+//! This can be used to create encryption keys with the help of a Tang server, and later recover
+//! them using the same server. If you would like to test, the [padhihomelab/tang] Docker image
+//! provides an easy way to get started. See [the readme] for more information.
 //!
 //! ```
 //! # fn main() {
@@ -41,6 +43,12 @@
 //! assert_eq!(original_key, new_key);
 //! # }
 //! ```
+//!
+//! Please note that the same key length must be used for key creation and recovery (`KEY_BYTES`
+//! here) and it is not stored as part of metadata.
+//!
+//! [padhihomelab/tang]: https://hub.docker.com/r/padhihomelab/tang
+//! [the readme]: https://github.com/pluots/clevis-rs/
 
 #![warn(clippy::pedantic)]
 #![allow(clippy::missing_panics_doc)]

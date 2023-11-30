@@ -66,6 +66,7 @@ impl TangClient {
         adv.validate_into_keys(thumbprint)
     }
 
+    /// Perform the POST request that requests serverside key exchange to produce a recovery key
     fn fetch_recovery_key(&self, kid: &str, x_pub_jwk: &Jwk) -> Result<Jwk> {
         let url = format!("{}/rec/{kid}", &self.url);
         log::debug!("requesting recovery key from '{url}'");
