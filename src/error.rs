@@ -42,7 +42,6 @@ impl fmt::Display for Error {
             Error::Base64(e) => write!(f, "base64 error {e}"),
             Self::VerifyKey => write!(f, "missing a key marked 'verify'"),
             Self::KeyType(v) => write!(f, "unsupported key type {v}"),
-            // Error::Jose(e) => write!(f, "jose error {e}"),
             Error::InvalidPublicKey(key) => write!(f, "invalid public key {key}"),
             Error::EllipitcCurve => write!(f, "elliptic curve cryptography"),
             Error::MissingPublicKey => write!(f, "could not locate a key with the correct key ID"),

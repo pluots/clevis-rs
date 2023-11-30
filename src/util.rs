@@ -2,6 +2,7 @@ use base64ct::{Base64UrlUnpadded, Encoding};
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer};
 
+/// Serde base64 deserializer
 pub fn b64_to_str<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: Deserializer<'de>,
@@ -11,6 +12,7 @@ where
     })
 }
 
+/// Serde base64 deserializer for non-string data
 pub fn b64_to_bytes<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
     D: Deserializer<'de>,
